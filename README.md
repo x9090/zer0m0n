@@ -5,13 +5,14 @@ To-do :
 + NtCreateThreadEx x64
 + Use cuckoomon syscalls logs
 + Dynamic-static analysis integration
-+ Sandalone (procmon-like) version :]
++ Standalone (procmon-like) version :]
 + Use inverted IRP calls with kernel buffer instead of filter comm. ports :]
 + fix random socket desynch
 + code cleaning
 
 v0.9 changes :
-
++ cuckoo 1.2 compatibility
++ no need ActivePython anymore
 
 v0.8 changes :
 + Dump a physical page of memory when an unknown region of code is executed. (x86-32 only)
