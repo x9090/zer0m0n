@@ -1,4 +1,4 @@
-zer0m0n v0.8
+zer0m0n v0.9
 ============
 
 zer0m0n is a driver for Cuckoo Sandbox, it will perform kernel analysis during the execution of a malware. There are many ways for a malware author to bypass Cuckoo detection, he can detect the hooks, hardcodes the Nt* functions to avoid the hooks, detect the virtual machine... The goal of this driver is to offer the possibility for the user to choose between the classical userland analysis or a kernel analysis, which will be harder to detect or bypass.
@@ -7,6 +7,10 @@ Actually, it works for XP 32 bit and 7 32 bit/64 bit Windows machines.
 
 CHANGELOG
 =========
+
+v0.9
++ cuckoo 1.2 compatibility
++ no need ActivePython anymore
 
 v0.8
 + dump a physical page of memory when an unknown region of code is executed. (x86-32 only)
@@ -89,7 +93,7 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
    
  2- Open your virtual machine, it MUST run a "Windows XP x86" or a "Windows 7 x86" OS
 
- 3- Install ActivePython 2.7 (http://www.activestate.com/activepython/downloads)
+ 3- Disable UAC (http://windows.microsoft.com/en-us/windows/turn-user-account-control-on-off#1TC=windows-7)  and restart the virtual machine
 
  4- Run the "agent.py" script as usual
 
@@ -97,7 +101,6 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
 
 While submitting a new analysis, choose "kernelland" option on the Web interface, or use the option "kernel_analysis=yes" on commandline.
 
-Updating zer0m0n: edit then use the /bin/update_cuckoo.sh to update your cuckoo+zer0m0n installation :]
 
 INSTALL/USE (x64 version)
 =========================
@@ -120,11 +123,9 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
 
  5- At boot time, press F8 (to access the Advanced Boot Options) and choose "Disable Driver Signature Enforcement"  
  
- 6- Install ActivePython 2.7 (http://www.activestate.com/activepython/downloads) 
+ 6- Run the "agent.py" script as usual
 
- 7- Run the "agent.py" script as usual
-
- 8- Snapshot the VM
+ 7- Snapshot the VM
 
 While submitting a new analysis, choose "kernelland" option on the Web interface, or use the option "kernel_analysis=yes" on commandline. 
 
