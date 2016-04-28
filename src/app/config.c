@@ -1,6 +1,6 @@
 /*
-Cuckoo Sandbox - Automated Malware Analysis
-Copyright (C) 2010-2012 Cuckoo Sandbox Developers
+Cuckoo Sandbox - Automated Malware Analysis.
+Copyright (C) 2010-2015 Cuckoo Foundation.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -19,56 +19,110 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdio.h>
 #include <windows.h>
 #include "config.h"
+#include "hooking.h"
+#include "ntapi.h"
 
-void read_config(ULONG pid)
+static uint32_t _parse_mode(const char *mode)
 {
-	FILE *fp;
-	char *p;
-	char *key, *value;
+    uint32_t ret = HOOK_MODE_ALL;
+    while (*mode != 0) {
+        if(*mode == ' ' || *mode == ',') {
+            mode++;
+            continue;
+        }
 
-	// TODO unicode support
-    char buf[512];
-	char config_fname[MAX_PATH];
+        if(*mode >= '0' && *mode <= '9') {
+            ret = strtoul(mode, NULL, 10);
+            break;
+        }
 
-	sprintf(config_fname, "%s\\%d.ini",
-        getenv("TEMP"), pid);
+        if(strnicmp(mode, "dumptls", 7) == 0) {
+            ret |= HOOK_MODE_DUMPTLS;
+            mode += 7;
+            continue;
+        }
 
-	//hFile = CreateFileA(config_fname, GENERIC_READ, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
-	fp = fopen(config_fname, "r");
-	
-	if(fp != NULL)
-	{
-		while(fgets(buf, sizeof(buf), fp) != NULL)
-		{
+        if(strnicmp(mode, "iexplore", 8) == 0) {
+            ret |= HOOK_MODE_IEXPLORE;
+            mode += 8;
+            continue;
+        }
 
-			p = strchr(buf, '\r');
-			if(p != NULL) *p = 0;
-			p = strchr(buf, '\n');
-			if(p != NULL) *p = 0;
+        if(strnicmp(mode, "exploit", 7) == 0) {
+            ret |= HOOK_MODE_EXPLOIT;
+            mode += 7;
+            continue;
+        }
 
-			// split key=value
-			p = strchr(buf, '=');
-			if(p != NULL) {
-			*p = 0;
-
-			key = buf;
-			value = p + 1;
-
-			if(!strcmp(key, "pipe")) {
-				strncpy(g_config.pipe_name, value,
-						ARRAYSIZE(g_config.pipe_name));
-			}
-			else if(!strcmp(key, "host-ip")) {
-				g_config.host_ip = inet_addr(value);
-			}
-			else if(!strcmp(key, "host-port")) {
-				g_config.host_port = atoi(value);
-			}
-		}
-	}
-	fclose(fp);
-	DeleteFile(config_fname);
-	}
+        // Report.. find a more proper way? At this point the pipe has not
+        // yet been initialized, so.
+        MessageBox(NULL, "Invalid Monitor Mode", mode, 0);
+    }
+    return ret;
 }
 
+void config_read(config_t *cfg, int pid)
+{
+    char buf[512], config_fname[MAX_PATH];
+    sprintf(config_fname, "C:\\cuckoo_%lu.ini", pid);
 
+    memset(cfg, 0, sizeof(config_t));
+
+    FILE *fp = fopen(config_fname, "rb");
+    if(fp == NULL) {
+        MessageBox(NULL, "Error fetching configuration file! This is a "
+            "serious error. If encountered, please notify the Cuckoo "
+            "Developers as this error prevents analysis.", "Cuckoo Error", 0);
+        return;
+    }
+
+    while (fgets(buf, sizeof(buf), fp) != NULL) {
+        // Cut off the newline.
+        char *p = strchr(buf, '\r');
+        if(p != NULL) *p = 0;
+
+        p = strchr(buf, '\n');
+        if(p != NULL) *p = 0;
+
+        // Split key=value.
+        p = strchr(buf, '=');
+        if(p == NULL) continue;
+
+        *p = 0;
+
+        const char *key = buf, *value = p + 1;
+
+        if(strcmp(key, "pipe") == 0) {
+            strcpy(cfg->pipe_name, value);
+        }
+        else if(strcmp(key, "logpipe") == 0) {
+            strcpy(cfg->logpipe, value);
+        }
+        else if(strcmp(key, "shutdown-mutex") == 0) {
+            strcpy(cfg->shutdown_mutex, value);
+        }
+        else if(strcmp(key, "first-process") == 0) {
+            cfg->first_process = value[0] == '1';
+        }
+        else if(strcmp(key, "startup-time") == 0) {
+            cfg->startup_time = strtoul(value, NULL, 10);
+        }
+        else if(strcmp(key, "force-sleepskip") == 0) {
+            cfg->force_sleep_skip = value[0] == '1';
+        }
+        else if(strcmp(key, "hashes-path") == 0) {
+            strcpy(cfg->hashes_path, value);
+        }
+        else if(strcmp(key, "diffing-enable") == 0) {
+            cfg->diffing_enable = value[0] == '1';
+        }
+        else if(strcmp(key, "track") == 0) {
+            cfg->track = value[0] == '1';
+        }
+        else if(strcmp(key, "mode") == 0) {
+            cfg->mode = _parse_mode(value);
+        }
+    }
+    fclose(fp);
+    DeleteFile(config_fname);
+}

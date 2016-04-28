@@ -49,12 +49,12 @@
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 PVOID
 QuerySystemInformation (
-	IN SYSTEM_INFORMATION_CLASS SystemInformationClass
-) {
-    NTSTATUS Status;
+		IN SYSTEM_INFORMATION_CLASS SystemInformationClass
+		) {
+	NTSTATUS Status;
 	PVOID pSystemInformation = NULL;
-    ULONG SystemInformationLength = 0;
-    ULONG ReturnLength = 0;
+	ULONG SystemInformationLength = 0;
+	ULONG ReturnLength = 0;
 
 	// Retrieve the requested structure size
 	if (ZwQuerySystemInformation (SystemInformationClass, &SystemInformationLength, 0, &SystemInformationLength) != STATUS_INFO_LENGTH_MISMATCH) {
@@ -103,13 +103,13 @@ QuerySystemInformation (
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 PVOID
 QueryProcessInformation (
-	IN HANDLE Process, 
-	IN PROCESSINFOCLASS ProcessInformationClass, 
-	IN DWORD ProcessInformationLength
-) {
-    NTSTATUS Status;
+		IN HANDLE Process, 
+		IN PROCESSINFOCLASS ProcessInformationClass, 
+		IN DWORD ProcessInformationLength
+		) {
+	NTSTATUS Status;
 	PVOID pProcessInformation = NULL;
-    ULONG ReturnLength = 0;
+	ULONG ReturnLength = 0;
 
 	// Allocate the memory for the requested structure
 	if ((pProcessInformation = ExAllocatePoolWithTag (NonPagedPool, ProcessInformationLength, 'QPI')) == NULL) {
@@ -133,79 +133,3 @@ QueryProcessInformation (
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Get the entire module information table from the current process
-//
-//	Parameters :
-//		Nothing
-//	Return value :
-//		PMODULE_INFORMATION_TABLE : 	A pointer to an allocated module information table
-//	Process :
-//		Wrapper around GetPebProcess, reads and store the result into a MODULE_INFORMATION_TABLE structure
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PMODULE_INFORMATION_TABLE
-QueryModuleInformationCurrentProcess (
-	VOID
-) {
-	PPEB pPeb = NULL;
-	HANDLE Process = ZwCurrentProcess ();
-	PMODULE_INFORMATION_TABLE pModuleInformationTable = NULL;
-	HANDLE CurrentPid = PsGetCurrentProcessId ();
-
-	// Read the PEB from the target process
-	if ((pPeb = GetPebCurrentProcess ()) == NULL) {
-		Dbg ("Pid=%d : GetPebCurrentProcess failed.", CurrentPid);
-		return NULL;
-	}
-
-	// Convert the PEB into a MODULE_INFORMATION_TABLE
-	if ((pModuleInformationTable = CreateModuleInformation ((ULONG) CurrentPid, pPeb)) == NULL) {
-		Dbg ("Pid=%d : CreateModuleInformation failed.", CurrentPid);
-		return NULL;
-	}
-
-	return pModuleInformationTable;
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Retrieve the entire PEB structure of the current process
-//
-//	Parameters :
-//	Return value :
-//		PPEB :		A pointer to the PEB structure of the current process, or NULL if error
-//	Process :
-//		Calls QueryProcessInformation with a ProcessBasicInformation class to retrieve a PROCESS_BASIC_INFORMATION pointer
-//		Read the field PebAddress from PROCESS_BASIC_INFORMATION and return it as a PEB pointer.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PPEB
-GetPebCurrentProcess (
-	VOID
-) {
-	PPROCESS_BASIC_INFORMATION pProcessInformation = NULL;
-	DWORD ProcessInformationLength = sizeof (PROCESS_BASIC_INFORMATION);
-	HANDLE Process = ZwCurrentProcess ();
-	PPEB pPeb = NULL;
-
-	// ProcessBasicInformation returns information about the PebBaseAddress
-	if ((pProcessInformation = QueryProcessInformation (Process, ProcessBasicInformation, ProcessInformationLength)) == NULL) {
-		Dbg ("Handle=%x : QueryProcessInformation failed.", Process);
-		return NULL;
-	}
-
-	// Check the correctness of the value returned
-	if (pProcessInformation->PebBaseAddress == NULL) {
-		Dbg ("Handle=%x : PEB address cannot be found.", Process);
-		ExFreePool (pProcessInformation);
-		return NULL;
-	}
-
-	pPeb = pProcessInformation->PebBaseAddress;
-
-	// Cleaning
-	ExFreePool (pProcessInformation);
-
-	return pPeb;
-}

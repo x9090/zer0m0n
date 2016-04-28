@@ -5,8 +5,7 @@
 #include <ntddk.h>
 #include <windef.h>
 
-#include "module.h"
-#include "hook.h" // SYSTEM_INFORMATION_CLASS definition
+#include "hooking.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description : 
@@ -49,40 +48,6 @@ QueryProcessInformation (
 	IN HANDLE Process, 
 	IN PROCESSINFOCLASS ProcessInformationClass, 
 	IN DWORD ProcessInformationLength
-);
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Get the entire module information table from the current process
-//
-//	Parameters :
-//		Nothing
-//	Return value :
-//		PMODULE_INFORMATION_TABLE : 	A pointer to an allocated module information table
-//	Process :
-//		Wrapper around GetPebProcess, reads and store the result into a MODULE_INFORMATION_TABLE structure
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PMODULE_INFORMATION_TABLE
-QueryModuleInformationCurrentProcess (
-	VOID
-);
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Retrieve the entire PEB structure of the current process
-//
-//	Parameters :
-//	Return value :
-//		PPEB :		A pointer to the PEB structure of the current process, or NULL if error
-//	Process :
-//		Calls QueryProcessInformation with a ProcessBasicInformation class to retrieve a PROCESS_BASIC_INFORMATION pointer
-//		Read the PROCESS_BASIC_INFORMATION.PebAddress to retrieve the address of the PEB structure before returning it
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PPEB
-GetPebCurrentProcess (
-	VOID
 );
 
 #endif

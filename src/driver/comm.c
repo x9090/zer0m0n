@@ -1,39 +1,66 @@
-////////////////////////////////////////////////////////////////////////////
-//
-//	zer0m0n DRIVER
-//
-//  Copyright 2013 Conix Security, Nicolas Correia, Adrien Chevalier
-//
-//  This file is part of zer0m0n.
-//
-//  Zer0m0n is free software: you can redistribute it and/or modify
-//  it under the terms of the GNU General Public License as published by
-//  the Free Software Foundation, either version 3 of the License, or
-//  (at your option) any later version.
-//
-//  Zer0m0n is distributed in the hope that it will be useful,
-//  but WITHOUT ANY WARRANTY; without even the implied warranty of
-//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-//  GNU General Public License for more details.
-//
-//  You should have received a copy of the GNU General Public License
-//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
-//
-//
-//	File :		comm.c
-//	Abstract :	Kernel/Userland communications handling.
-//	Revision : 	v1.0
-//	Author :	Adrien Chevalier & Nicolas Correia
-//	Email :		adrien.chevalier@conix.fr nicolas.correia@conix.fr
-//	Date :		2013-12-26	  
-//	Notes : 	
-//
-////////////////////////////////////////////////////////////////////////////
-#include "comm.h"
 #include "main.h"
 #include "utils.h"
 #include "monitor.h"
-#include "hook.h"
+#include "hooking.h"
+#include "comm.h"
+
+// filter callbacks struct
+static const FLT_REGISTRATION fltRegistration =
+{
+	sizeof(FLT_REGISTRATION),
+	FLT_REGISTRATION_VERSION,
+	FLTFL_REGISTRATION_DO_NOT_SUPPORT_SERVICE_STOP, 
+	NULL,
+	NULL,
+	FltUnregister,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL,
+	NULL
+};
+
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description : initializes the filter port
+//
+//	Parameters : 
+//		__in PDRIVER_OBJECT pDriverObject :	    Data structure used to represent the driver.
+//
+//	Return value :
+//		NTSTATUS : STATUS_SUCCESS if the minifilter initialization has been well completed
+//	Process :
+//		Register filter / Creates communication port
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS InitMinifilter(__in PDRIVER_OBJECT pDriverObject)
+{
+	NTSTATUS status;
+	OBJECT_ATTRIBUTES objAttr;
+	PSECURITY_DESCRIPTOR pSecurityDesc = NULL;
+	UNICODE_STRING fltPortName;
+
+	status = FltRegisterFilter(pDriverObject, &fltRegistration, &fltFilter);
+	if(!NT_SUCCESS(status))
+		return status;
+
+	RtlInitUnicodeString(&fltPortName, FILTER_PORT_NAME);
+	status = FltBuildDefaultSecurityDescriptor(&pSecurityDesc, FLT_PORT_ALL_ACCESS); 
+	if(!NT_SUCCESS(status))
+		return status;
+
+	InitializeObjectAttributes(&objAttr, &fltPortName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, pSecurityDesc);
+
+	status = FltCreateCommunicationPort(fltFilter, &fltServerPort, &objAttr, NULL, FltConnectCallback, 
+			FltDisconnectCallback, NULL, FLT_MAX_CONNECTIONS);
+	FltFreeSecurityDescriptor(pSecurityDesc);    
+	if(!NT_SUCCESS(status))
+		return status;
+
+	return STATUS_SUCCESS;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -45,12 +72,16 @@
 //	Process :
 //		Sets the global variable "clientPort" with the supplied client port communication.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS ConnectCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVOID ConnectionContext, ULONG SizeOfContext, PVOID* ConnectionPortCookie)
+NTSTATUS FltConnectCallback(__in PFLT_PORT ClientPort, 
+		__in PVOID ServerPortCookie, 
+		__in PVOID ConnectionContext, 
+		__in ULONG SizeOfContext, 
+		__out PVOID* ConnectionPortCookie)
 {
 	if(ClientPort == NULL)
 		return STATUS_INVALID_PARAMETER;
 
-	clientPort = ClientPort;
+	fltClientPort = ClientPort;
 	return STATUS_SUCCESS;
 }
 
@@ -60,107 +91,80 @@ NTSTATUS ConnectCallback(PFLT_PORT ClientPort, PVOID ServerPortCookie, PVOID Con
 //	Parameters : 
 //		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
 //	Return value :
-//		None
+//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
 //	Process :
-//		Might be used to notify cuckoo while shutting down. In the future.
+//		We don't use it but this callback has to be declared anyway.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID DisconnectCallback(PVOID ConnectionCookie)
+VOID FltDisconnectCallback(__in PVOID ConnectionCookie)
 {
 }
 
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
-//		Generates a message using "pid", "message" and "parameter" and sends it back to userland throught
-//		a filter communication port.
+//		DEVICE_IO_CONTROL IRP handler. Used for getting informations from Cuckoo.
 //	Parameters :
-//		_in_opt_ ULONG pid :		Process ID from which the logs are produced.
-//		_in_opt_ PWCHAR message :	Message (function name most of the time).
-//		_in_opt_ PWCHAR parameter :	Function args.
+//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
 //	Return value :
-//		NTSTATUS : FltSendMessage return value.
+//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
 //	Process :
-//		- Retrieves the process name from the pid and saves the whole data into an ANSI string.
-//		- Generates an ANSI string with the message, with the process name, pid, and function name, and the
-//		- generic "parameter" parameter. The resulting output will basically follow this scheme:
-//			"pid","proces_name","function_name","FAILED/SUCCESS(0/1)","return_value","number_of_arguments","argument1->value","argument2->value"...
-//		- Uses the "mutex" mutex to avoid concurrency when using the FltSendMessage() function.
+//		Handles IRP_MJ_CONTROL IOCTLs.
+//		Retrieves PIDs to monitor / hide  
+//		Destroys the driver symbolic name for security (we don't want someone to interact with the driver).
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS sendLogs(ULONG pid, PWCHAR message, PWCHAR parameter)
+NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
+		__in PIRP pIrp)
 {
 	NTSTATUS status = STATUS_SUCCESS;
-	CHAR buf[MAXSIZE];
-	UNICODE_STRING processName;
-	ULONG sizeBuf;
-	
-	LARGE_INTEGER timeout;
-	timeout.QuadPart = -((LONGLONG)0.5*10*1000*1000);
-	
-	if(message == NULL)
+	PIO_STACK_LOCATION pIoStackIrp = NULL;
+	PCHAR buffer;
+	ULONG ioControlCode;
+	ULONG inputLength;
+	ULONG malware_pid = 0;
+
+	if(pIrp == NULL || pDeviceObject == NULL)
 		return STATUS_INVALID_PARAMETER;
 
-    #ifdef DEBUG
-    DbgPrint("SendLogs\n");
-    #endif
+	// get the current stack location
+	pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
 
-	processName.Length = 0;
-	processName.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
-	processName.Buffer = ExAllocatePoolWithTag(NonPagedPool, processName.MaximumLength, PROCNAME_TAG);
-	if(!processName.Buffer)
-	{
-		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
-		status = FltSendMessage(filter, &clientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
-		KeReleaseMutex(&mutex, FALSE);
-		return STATUS_NO_MEMORY;
-	}
-	
-	status = getProcNameByPID(pid, &processName);
-	if(!NT_SUCCESS(status))
-	{
-		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
-		status = FltSendMessage(filter, &clientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
-		KeReleaseMutex(&mutex, FALSE);
-		ExFreePool(processName.Buffer);
-		return status;
-	}
-	
-	status = RtlStringCbPrintfA(buf, MAXSIZE, "%d,%wZ,%ws,%ws\n", pid, &processName, message, parameter);
-	if(!NT_SUCCESS(status) || status == STATUS_BUFFER_OVERFLOW)
-	{
-		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
-		status = FltSendMessage(filter, &clientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
-		KeReleaseMutex(&mutex, FALSE);
-		ExFreePool(processName.Buffer);
-		return status;
-	}
-	
-	status = RtlStringCbLengthA(buf, MAXSIZE, &sizeBuf);
-	if(!NT_SUCCESS(status))
-	{
-		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
-		status = FltSendMessage(filter, &clientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
-		KeReleaseMutex(&mutex, FALSE);
-		ExFreePool(processName.Buffer);
-		return status;
-	}
-	
+	// get the io control parameters
+	ioControlCode = pIoStackIrp->Parameters.DeviceIoControl.IoControlCode;
+	inputLength = pIoStackIrp->Parameters.DeviceIoControl.InputBufferLength;
+	buffer = pIrp->AssociatedIrp.SystemBuffer;
 
-	KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
-	#ifdef DEBUG
-	DbgPrint("\tmsg : %s\n", buf);
-	#endif
-    
-    status = FltSendMessage(filter, &clientPort, buf, sizeBuf, NULL, 0, NULL);
-	if(status == STATUS_TIMEOUT)
-		DbgPrint("STATUS_TIMEOUT !!\n");
-	KeReleaseMutex(&mutex, FALSE);
-	ExFreePool(processName.Buffer);
-	
-	#ifdef DEBUG
-	if(!NT_SUCCESS(status))
-		DbgPrint("return : 0x%08x\n", status);
-	#endif DEBUG	
-	
+	switch(ioControlCode)
+	{
+		case IOCTL_PROC_MALWARE:
+			Dbg("IOCTL_PROC_MALWARE received\n");
+			status = RtlCharToInteger(buffer, 10, &malware_pid);
+			Dbg("malware_pid : %d\n", malware_pid);
+			if(NT_SUCCESS(status) && malware_pid > 0)
+				StartMonitoringProcess(malware_pid);				
+			break;	
+
+		case IOCTL_PROC_TO_HIDE:
+			Dbg("pids to hide : %s\n", buffer);
+			// à parser et à ajouter dans la liste des pids à cacher !
+			break;
+
+		case IOCTL_CUCKOO_PATH:
+			cuckooPath = PoolAlloc(MAX_SIZE);
+			if(inputLength && inputLength < MAX_SIZE)
+				RtlStringCchPrintfW(cuckooPath, MAX_SIZE, L"\\??\\%ws", buffer);
+			else
+			{
+				Dbg("IOCTL_CUCKOO_PATH : Buffer too large\n");
+				return STATUS_BUFFER_TOO_SMALL;
+			}
+			Dbg("cuckoo path : %ws\n", cuckooPath);
+			break;
+
+		default:
+			break;
+	}
+
+	pIrp->IoStatus.Status = status;	
+	IoCompleteRequest(pIrp, IO_NO_INCREMENT);
 	return status;
 }
 
@@ -170,175 +174,107 @@ NTSTATUS sendLogs(ULONG pid, PWCHAR message, PWCHAR parameter)
 //	Parameters :
 //		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
 //	Return value :
-//		NTSTATUS : STATUS_SUCCESS
+//		NTSTATUS : STATUS_NOT_SUPPORTED
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS ioctl_NotSupported(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS Ioctl_NotSupported(__in PDEVICE_OBJECT pDeviceObject,
+		__in PIRP pIrp)
 {
-	if(Irp == NULL || DeviceObject == NULL)
-		return STATUS_INVALID_PARAMETER;
-
-	((*Irp).IoStatus).Status = STATUS_SUCCESS;
-	((*Irp).IoStatus).Information = 0;
-	IoCompleteRequest(Irp, IO_NO_INCREMENT);
-	return STATUS_SUCCESS;
+	return STATUS_NOT_SUPPORTED;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Parses received PIDs IOCTL from analyzer.py and adds ths PIDs in the hidden and monitored
-//		lists.
+//  Description :
+//		Unregisters the minifilter.
 //	Parameters :
-//		IRP buffer data.
+//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
 //	Return value :
-//		NTSTATUS : STATUS_SUCCESS on success.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS parse_pids(PCHAR pids)
-{
-	PCHAR start = NULL, current = NULL, data = NULL;
-	ULONG len, pid;
-	int nb_pid = 0;
-	NTSTATUS status;
-	
-	if(pids == NULL)
-		return STATUS_INVALID_PARAMETER;
-	
-	status = RtlStringCbLengthA(pids, MAXSIZE, &len);
-	if(!NT_SUCCESS(status))
-		return status;
-	
-	data = ExAllocatePoolWithTag(NonPagedPool, len+1, TEMP_TAG);
-	if(data == NULL)
-		return STATUS_NO_MEMORY;
-	
-	status = RtlStringCbPrintfA(data, len+1, "%s", pids);
-	if(!NT_SUCCESS(status))
-	{
-		ExFreePool(data);
-		return status;
-	}
-	
-	start = data;
-	current = data;
-	
-	while(*current != 0x00)
-	{
-		if(*current == '_' && current!=start)
-		{
-			*current = 0x00;
-			status = RtlCharToInteger(start, 10, &pid);
-			if(NT_SUCCESS(status) && pid!=0)
-			{
-				if(!nb_pid)
-				{
-					startMonitoringProcess(pid);
-				}
-				else if(nb_pid == 1)
-				{
-					if(pid)
-						addHiddenProcess(pid);
-					hook_ssdt(pid);
-				}
-				else
-				{
-					if(pid)
-						addHiddenProcess(pid);
-				}
-				nb_pid++;
-			}
-			start = current+1;
-		}
-		current++;
-	}
-	
-	if(start != current)
-	{
-		status = RtlCharToInteger(start, 10, &pid);
-		if(NT_SUCCESS(status) && pid!=0)
-		{
-			if(!nb_pid)
-				startMonitoringProcess(pid);
-			else if(nb_pid == 1)
-			{
-				if(pid)
-					addHiddenProcess(pid);
-				hook_ssdt(pid);	
-			}	
-			else
-				addHiddenProcess(pid);
-		}	
-	}	
-	ExFreePool(data);
-	
-	return STATUS_SUCCESS;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		DEVICE_IO_CONTROL IRP handler. Used for getting the monitored process PID.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
+//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
 //	Process :
-//		Handles IRP_MJ_CONTROL IOCTLs. Adds the pid to the monitored list and then destroys the driver
-//		symbolic name for security (we don't want someone to interact with the driver).
-//	Notes :
-//		RtlCharToInteger is used to convert the received char* to int because there is no way to send
-//		directly an integer using DeviceIoControl() in python :
-//		http://docs.activestate.com/activepython/2.5/pywin32/win32file__DeviceIoControl_meth/html
+//		Closes filter communication port and unregisters the filter.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS ioctl_DeviceControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
+NTSTATUS FltUnregister(__in FLT_FILTER_UNLOAD_FLAGS flags)
+{
+	FltCloseCommunicationPort(fltServerPort);
+
+	if(fltFilter != NULL)
+		FltUnregisterFilter(fltFilter);
+
+	return STATUS_FLT_DO_NOT_DETACH;
+}
+
+NTSTATUS sendLogs(ULONG pid, ULONG sig_func, PWCHAR parameter)
 {
 	NTSTATUS status = STATUS_SUCCESS;
-	PIO_STACK_LOCATION pIoStackIrp = NULL;
-	PCHAR outputBuffer = NULL;
-	DWORD sizeBuf;
-	ULONG pid;
-	
-	if(Irp == NULL || DeviceObject == NULL)
+	CHAR buf[MAX_SIZE];
+	UNICODE_STRING processName;
+	size_t sizeBuf;
+
+	LARGE_INTEGER timeout;
+	timeout.QuadPart = -((LONGLONG)0.5*10*1000*1000);
+
+	if(sig_func <= 0)
 		return STATUS_INVALID_PARAMETER;
-	
-	pIoStackIrp = IoGetCurrentIrpStackLocation(Irp);
-	switch(pIoStackIrp->Parameters.DeviceIoControl.IoControlCode)
+
+	Dbg("SendLogs\n");
+	Dbg("parameter : %ws\n", parameter);
+		
+	processName.Length = 0;
+	processName.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
+	processName.Buffer = PoolAlloc(processName.MaximumLength);
+	if(!processName.Buffer)
 	{
-		case IOCTL_PID:		
-			// for tests only
-			//pid = *(ULONG*)Irp->AssociatedIrp.SystemBuffer; 
-			
-			// parse the pids received from cuckoo
-			status = parse_pids(Irp->AssociatedIrp.SystemBuffer);
-		
-			Irp->IoStatus.Status = status;
-			IoCompleteRequest(Irp, IO_NO_INCREMENT);
-		break;
-		
-		case IOCTL_CUCKOO_PATH:		
-		
-			cuckooPath = ExAllocatePoolWithTag(NonPagedPool, (MAXSIZE+1)*sizeof(WCHAR), 'yoaH');
-			sizeBuf = pIoStackIrp->Parameters.DeviceIoControl.InputBufferLength;
-			if(sizeBuf  && sizeBuf < MAXSIZE)
-				RtlStringCchPrintfW(cuckooPath, MAXSIZE, L"\\??\\%ws", Irp->AssociatedIrp.SystemBuffer);
-			else
-			{
-				#ifdef DEBUG
-				DbgPrint("IOCTL_CUCKOO_PATH : Buffer too large\n");
-				#endif DEBUG
-				return STATUS_BUFFER_TOO_SMALL;
-			}
-				
-			#ifdef DEBUG
-			DbgPrint("cuckooPath : %ws\n", cuckooPath);
-			#endif DEBUG
-			
-			Irp->IoStatus.Status = STATUS_SUCCESS;
-			IoCompleteRequest(Irp, IO_NO_INCREMENT);
-			
-			status = IoDeleteSymbolicLink(&usDosDeviceName);
-			IoDeleteDevice(DeviceObject);
-		break;
-		
-		default:
-		break;
+		Dbg("Error 1\n");
+		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
+		status = FltSendMessage(fltFilter, &fltClientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
+		KeReleaseMutex(&mutex, FALSE);
+		return STATUS_NO_MEMORY;
 	}
-	return status; 
+
+	status = getProcNameByPID(pid, &processName);
+	if(!NT_SUCCESS(status))
+	{
+		Dbg("Error 2\n");
+		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
+		status = FltSendMessage(fltFilter, &fltClientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
+		KeReleaseMutex(&mutex, FALSE);
+		PoolFree(processName.Buffer);
+		return status;
+	}
+
+	status = RtlStringCbPrintfA(buf, MAX_SIZE, "%d,%wZ,%d,%ws\n", pid, &processName, sig_func, parameter);
+	if(!NT_SUCCESS(status) || status == STATUS_BUFFER_OVERFLOW)
+	{
+		Dbg("Error 3 : %x\n", status);
+		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
+		status = FltSendMessage(fltFilter, &fltClientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
+		KeReleaseMutex(&mutex, FALSE);
+		PoolFree(processName.Buffer);
+		return status;
+	}
+
+	status = RtlStringCbLengthA(buf, MAX_SIZE, &sizeBuf);
+	if(!NT_SUCCESS(status))
+	{
+		Dbg("Error 4\n");
+		KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
+		status = FltSendMessage(fltFilter, &fltClientPort, "0,error,error,error\n", 20, NULL, 0, &timeout);
+		KeReleaseMutex(&mutex, FALSE);
+		PoolFree(processName.Buffer);
+		return status;
+	}
+
+
+	KeWaitForMutexObject(&mutex, Executive, KernelMode, FALSE, NULL);
+	Dbg("\tmsg : %s\n", buf);
+
+	status = FltSendMessage(fltFilter, &fltClientPort, buf, sizeBuf, NULL, 0, NULL);
+	if(status == STATUS_TIMEOUT)
+		Dbg("STATUS_TIMEOUT !!\n");
+	KeReleaseMutex(&mutex, FALSE);
+	PoolFree(processName.Buffer);
+
+	if(!NT_SUCCESS(status))
+		Dbg("return : 0x%08x\n", status);
+
+	return status;
 }

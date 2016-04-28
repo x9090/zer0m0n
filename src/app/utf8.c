@@ -1,6 +1,6 @@
 /*
-Cuckoo Sandbox - Automated Malware Analysis
-Copyright (C) 2010-2013 Cuckoo Sandbox Developers
+Cuckoo Sandbox - Automated Malware Analysis.
+Copyright (C) 2010-2015 Cuckoo Foundation.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -18,6 +18,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdio.h>
 #include <windows.h>
+#include "memory.h"
 #include "utf8.h"
 
 int utf8_encode(unsigned short c, unsigned char *out)
@@ -27,13 +28,13 @@ int utf8_encode(unsigned short c, unsigned char *out)
         return 1;
     }
     else if(c < 0x800) {
-        *out = 0xc0 + ((c >> 8) << 2) + (c >> 6);
+        out[0] = 0xc0 + ((c >> 6) & 0x1f);
         out[1] = 0x80 + (c & 0x3f);
         return 2;
     }
     else {
-        *out = 0xe0 + (c >> 12);
-        out[1] = 0x80 + (((c >> 8) & 0x1f) << 2) + ((c >> 6) & 0x3);
+        out[0] = 0xe0 + ((c >> 12) & 0x0f);
+        out[1] = 0x80 + ((c >> 6) & 0x3f);
         out[2] = 0x80 + (c & 0x3f);
         return 3;
     }
@@ -45,60 +46,54 @@ int utf8_length(unsigned short x)
     return utf8_encode(x, buf);
 }
 
-int utf8_strlen_ascii(const char *s, int len)
+int utf8_bytecnt_ascii(const char *s, int len)
 {
-	int ret = 0;    
-	if(len < 0) len = strlen(s);
+    if(len < 0) len = strlen(s);
 
+    int ret = 0;
     while (len-- != 0) {
         ret += utf8_length(*s++);
     }
     return ret;
 }
 
-int utf8_strlen_unicode(const wchar_t *s, int len)
+int utf8_bytecnt_unicode(const wchar_t *s, int len)
 {
-	int ret = 0;
-	if(len < 0) len = lstrlenW(s);
+    if(len < 0) len = lstrlenW(s);
 
+    int ret = 0;
     while (len-- != 0) {
         ret += utf8_length(*s++);
     }
     return ret;
 }
 
-char * utf8_string(const char *str, int length)
+char *utf8_string(const char *s, int len)
 {
-    int encoded_length;
-	char * utf8string;
-	int pos = 4;
+    if(len < 0) len = strlen(s);
 
-	if (length == -1) length = strlen(str);
-	encoded_length = utf8_strlen_ascii(str, length);
-    utf8string = (char *) malloc(encoded_length+4);
+    int encoded_length = utf8_bytecnt_ascii(s, len);
+    char *utf8string = (char *) mem_alloc(encoded_length+4);
     *((int *) utf8string) = encoded_length;
-    
+    int pos = 4;
 
-    while (length-- != 0) {
-        pos += utf8_encode(*str++, (unsigned char *) &utf8string[pos]);
+    while (len-- != 0) {
+        pos += utf8_encode(*s++, (unsigned char *) &utf8string[pos]);
     }
     return utf8string;
 }
 
-char * utf8_wstring(const wchar_t *str, int length)
+char *utf8_wstring(const wchar_t *s, int len)
 {
-    int encoded_length;
-	char * utf8string;
-	int pos = 4;
+    if(len < 0) len = lstrlenW(s);
 
-	if (length == -1) length = lstrlenW(str);
-    
-	encoded_length = utf8_strlen_unicode(str, length);
-    utf8string = (char *) malloc(encoded_length+4);
+    int encoded_length = utf8_bytecnt_unicode(s, len);
+    char *utf8string = (char *) mem_alloc(encoded_length+4);
     *((int *) utf8string) = encoded_length;
+    int pos = 4;
 
-    while (length-- != 0) {
-        pos += utf8_encode(*str++, (unsigned char *) &utf8string[pos]);
+    while (len-- != 0) {
+        pos += utf8_encode(*s++, (unsigned char *) &utf8string[pos]);
     }
     return utf8string;
 }

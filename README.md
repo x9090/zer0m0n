@@ -1,14 +1,21 @@
-zer0m0n v0.9 (DEVELOPMENT BRANCH)
+zer0m0n v1.0 (DEVELOPMENT BRANCH)
 =================================
 
 To-do :
-+ NtCreateThreadEx x64
-+ Use cuckoomon syscalls logs
-+ Dynamic-static analysis integration
-+ Standalone (procmon-like) version :]
-+ Use inverted IRP calls with kernel buffer instead of filter comm. ports :]
-+ fix random socket desynch
 + code cleaning
++ moar hooks
++ antiVM/Cuckoo detection features
++ fix a synchronization problem between cuckoo and zer0m0n when a new process is being monitored 
++ sanitize buffer before logging
++ fix NtDeviceIoControl outputBuffer log
++ fix NtQueryValueKey regkey log
++ moar code refactoring
+
+v1.0 changes :
++ works with cuckoo 2.0
++ syscall number dynamically retrieved (you can now run zer0m0n on all Windows versions)
++ code refactoring
++ several minor changes
 
 v0.9 changes :
 + cuckoo 1.2 compatibility
