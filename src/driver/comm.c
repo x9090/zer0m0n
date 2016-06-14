@@ -144,7 +144,8 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 
 		case IOCTL_PROC_TO_HIDE:
 			Dbg("pids to hide : %s\n", buffer);
-			// à parser et à ajouter dans la liste des pids à cacher !
+			status = parse_pids(buffer);
+			RtlZeroMemory(buffer, inputLength);
 			break;
 
 		case IOCTL_CUCKOO_PATH:

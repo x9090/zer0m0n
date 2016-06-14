@@ -1019,6 +1019,9 @@ static const flag_t g_api_flags[MONITOR_HOOKCNT][8] = {
     [SIG_ntdll_NtSystemDebugControl] = {
         FLAG_NONE,
     },
+    [SIG_ntdll_NtDebugActiveProcess] = {
+        FLAG_NONE,
+    },  
 };
 
 static const char *g_api_flagnames[MONITOR_HOOKCNT][8] = {
@@ -2037,6 +2040,9 @@ static const char *g_api_flagnames[MONITOR_HOOKCNT][8] = {
     [SIG_ntdll_NtSystemDebugControl] = {
         NULL,
     },
+    [SIG_ntdll_NtDebugActiveProcess] = {
+        NULL,
+    },
 };
 
 
@@ -2361,6 +2367,7 @@ static const char *g_explain_apinames[] = {
     "shutdown",
     "socket",
     "NtSystemDebugControl",
+    "NtDebugActiveProcess",
     NULL,
 };
 
@@ -3004,6 +3011,8 @@ static const char *g_explain_categories[] = {
     // socket
     "network",
     // NtSystemDebugControl
+    "process",
+    // NtDebugActiveProcess
     "process",
 };
 
@@ -4878,6 +4887,11 @@ static const char *g_explain_paramnames[][16] = {
     {
         "command",
     },
+    // NtDebugActiveProcess
+    {
+        "process_handle",
+        "debug_handle",
+    },
 };
 
 
@@ -5264,7 +5278,7 @@ static const char *g_explain_paramtypes[] = {
     // NtOpenSection
     "Pxu",
     // NtOpenThread
-    "Pxui",
+    "ssss",
     // NtProtectVirtualMemory
     "pPLi",
     // NtQueryAttributesFile
@@ -5285,7 +5299,7 @@ static const char *g_explain_paramtypes[] = {
     "sssss"
     //"piuuiR",
     // NtQueueApcThread
-    "pppi",
+    "ssss",
     // NtReadFile
     "ssss",
     // NtReadVirtualMemory
@@ -5524,6 +5538,8 @@ static const char *g_explain_paramtypes[] = {
     "iiii",
     // NtSystemDebugControl
     "s",
+    // NtDebugActiveProcess
+    "ss",
 };
 
 const char *sig_flag_name(uint32_t sigidx, uint32_t flagidx)

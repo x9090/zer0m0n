@@ -22,7 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "flags.h"
 
 #define MONITOR_FIRSTHOOKIDX 4
-#define MONITOR_HOOKCNT 320
+#define MONITOR_HOOKCNT 321
 
 typedef enum _signature_index_t {
     SIG____process__,
@@ -345,6 +345,7 @@ typedef enum _signature_index_t {
     SIG_ws2_32_shutdown,
     SIG_ws2_32_socket,
     SIG_ntdll_NtSystemDebugControl,
+    SIG_ntdll_NtDebugActiveProcess,
 } signature_index_t;
 
 #endif

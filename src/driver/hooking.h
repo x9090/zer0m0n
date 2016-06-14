@@ -97,16 +97,16 @@ typedef enum _SYSTEM_INFORMATION_CLASS {
 } SYSTEM_INFORMATION_CLASS, *PSYSTEM_INFORMATION_CLASS;
 
 typedef struct _SECTION_IMAGE_INFORMATION {
-  PVOID                   EntryPoint;
-  ULONG                   StackZeroBits;
-  ULONG                   StackReserved;
-  ULONG                   StackCommit;
-  ULONG                   ImageSubsystem;
-  ULONG					  fuu;
-  ULONG                   Unknown1;
-  ULONG                   ImageCharacteristics;
-  ULONG                   ImageMachineType;
-  ULONG                   Unknown2[3];
+  PVOID     EntryPoint;
+  ULONG     StackZeroBits;
+  ULONG     StackReserved;
+  ULONG     StackCommit;
+  ULONG     ImageSubsystem;
+  ULONG		fuu;
+  ULONG     Unknown1;
+  ULONG     ImageCharacteristics;
+  ULONG     ImageMachineType;
+  ULONG     Unknown2[3];
 
 } SECTION_IMAGE_INFORMATION, *PSECTION_IMAGE_INFORMATION;
 

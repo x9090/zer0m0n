@@ -292,7 +292,7 @@ VOID HookSSDT()
 	ULONG syscall_ZwCreateUserProcess = 0, syscall_ZwCreateProcess = 0, syscall_ZwCreateProcessEx = 0;
 	ULONG syscall_ZwReadVirtualMemory = 0, syscall_ZwResumeThread = 0, syscall_ZwWriteVirtualMemory = 0;
 	ULONG syscall_ZwSetContextThread = 0, syscall_ZwCreateThread = 0, syscall_ZwCreateThreadEx = 0;
-	ULONG syscall_ZwSystemDebugControl = 0;
+	ULONG syscall_ZwSystemDebugControl = 0, syscall_ZwQueueApcThread = 0, syscall_ZwDebugActiveProcess = 0;
 	
 #ifdef _M_X64
 	KeServiceDescriptorTable = (pServiceDescriptorTableEntry)GetKeServiceDescriptorTable64();
@@ -305,6 +305,10 @@ VOID HookSSDT()
 	Dbg("pStartSearchAddress : %llx\n", pStartSearchAddress);
 	offsetSyscall = 21;
 #endif
+	// MANQUE HOOK CreateMutant
+	// MANQUE HOOK LoadDriver
+	// MANQUE HOOK DelayExecution
+	// manque imageCallback
 
 	pImageExportDirectory = MapNtdllIntoMemory();
 	syscall_ZwCreateUserProcess = GetSyscallNumber(pImageExportDirectory, "ZwCreateUserProcess", offsetSyscall);
@@ -316,7 +320,10 @@ VOID HookSSDT()
 	syscall_ZwSetContextThread = GetSyscallNumber(pImageExportDirectory, "ZwSetContextThread", offsetSyscall);
 	syscall_ZwCreateThread = GetSyscallNumber(pImageExportDirectory, "ZwCreateThread", offsetSyscall);
 	syscall_ZwCreateThreadEx = GetSyscallNumber(pImageExportDirectory, "ZwCreateThreadEx", offsetSyscall);
-	
+	syscall_ZwQueueApcThread = GetSyscallNumber(pImageExportDirectory, "ZwQueueApcThread", offsetSyscall);
+	syscall_ZwSystemDebugControl = GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall);
+	syscall_ZwDebugActiveProcess = GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall);
+
 	irql = UnsetWP();
 	Install_Hook(*(PULONG)((PUCHAR)ZwWriteFile+offsetSyscall), (PVOID)Hooked_NtWriteFile, (PVOID*)&Orig_NtWriteFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwCreateFile+offsetSyscall), (PVOID)Hooked_NtCreateFile, (PVOID*)&Orig_NtCreateFile, pStartSearchAddress, KiServiceTable);
@@ -330,7 +337,8 @@ VOID HookSSDT()
 	Install_Hook(*(PULONG)((PUCHAR)ZwDeviceIoControlFile+offsetSyscall), (PVOID)Hooked_NtDeviceIoControlFile, (PVOID*)&Orig_NtDeviceIoControlFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwMapViewOfSection+offsetSyscall), (PVOID)Hooked_NtMapViewOfSection, (PVOID*)&Orig_NtMapViewOfSection, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwOpenProcess+offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);	
-	Install_Hook(*(PULONG)((PUCHAR)ZwCreateSection+offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwCreateSection+offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);	
+	Install_Hook(*(PULONG)((PUCHAR)ZwQuerySystemInformation+offsetSyscall), (PVOID)Hooked_NtQuerySystemInformation, (PVOID*)&Orig_NtQuerySystemInformation, pStartSearchAddress, KiServiceTable);
 	
 	if(syscall_ZwWriteVirtualMemory)
 		Install_Hook(syscall_ZwWriteVirtualMemory, (PVOID)Hooked_NtWriteVirtualMemory, (PVOID*)&Orig_NtWriteVirtualMemory, pStartSearchAddress, KiServiceTable);
@@ -352,7 +360,11 @@ VOID HookSSDT()
 		Install_Hook(syscall_ZwCreateThreadEx, (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwSystemDebugControl)
 		Install_Hook(syscall_ZwSystemDebugControl, (PVOID)Hooked_NtSystemDebugControl, (PVOID*)&Orig_NtSystemDebugControl, pStartSearchAddress, KiServiceTable);
-			
+	if(syscall_ZwQueueApcThread)
+		Install_Hook(syscall_ZwQueueApcThread, (PVOID)Hooked_NtQueueApcThread, (PVOID*)&Orig_NtQueueApcThread, pStartSearchAddress, KiServiceTable);
+	if(syscall_ZwDebugActiveProcess)
+		Install_Hook(syscall_ZwDebugActiveProcess, (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);	
+	
 	SetWP(irql);
 }
 

@@ -440,7 +440,7 @@ NTSTATUS Hooked_NtOpenFile(__out PHANDLE FileHandle,
 	
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
-		Dbg("Call NtCreateFile\n");
+		Dbg("Call NtOpenFile\n");
 			
 		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
 		

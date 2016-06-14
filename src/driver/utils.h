@@ -15,6 +15,7 @@ typedef struct _THREAD_BASIC_INFORMATION {
 } THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
 
 VOID Resolve_FunctionsAddr();
+NTSTATUS parse_pids(PCHAR pids);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :

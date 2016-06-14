@@ -52,7 +52,6 @@ static void log_raw(const char *buf, size_t length);
 
 static int open_handles(uint32_t pid)
 {
-    printf("open_handles called\n");
     do {
         // TODO Use NtCreateFile instead of CreateFileW.
         g_log_handle = CreateFileW(g_log_pipename, GENERIC_WRITE,
@@ -62,7 +61,6 @@ static int open_handles(uint32_t pid)
         sleep(1);
     } while (g_log_handle == INVALID_HANDLE_VALUE);
 
-    printf("g_log_handle ok !\n");
 
     // The process identifier.
     uint32_t process_identifier = pid;
@@ -548,7 +546,7 @@ void log_new_process(int pid, char *filename)
     int is_64bit = 0;
 #endif
 
-    printf("%filename : s\n", filename);
+    printf("filename : %s\n", filename);
 
     log_api(sig_index_process(), 1, 0, 0, NULL, "iiiisui", st.dwLowDateTime,
             st.dwHighDateTime, pid, parent_process_identifier(pid) , 
@@ -601,10 +599,8 @@ void log_init(const char *pipe_name, int pid, char *procname)
 {
     InitializeCriticalSection(&g_mutex);
 
-    printf("before bson_set_heap_stuff\n");
     bson_set_heap_stuff(&_bson_malloc, &_bson_realloc, &_bson_free);
     g_api_init = virtual_alloc_rw(NULL, sig_count() * sizeof(uint8_t));
-    printf("after virtual_alloc_rw\n");
 
 #if DEBUG
     char filepath[MAX_PATH];
@@ -614,14 +610,9 @@ void log_init(const char *pipe_name, int pid, char *procname)
     wcsncpyA(g_debug_filepath, filepath, MAX_PATH);
 #endif
 
-    printf("before wcsncpyA\n");
     wcsncpyA(g_log_pipename, pipe_name, MAX_PATH);
-    printf("before open_handles\n");
     open_handles(pid);
-    printf("after open_handles\n");
 
     log_raw("BSON\n", 5);
     log_new_process(pid, procname);
-
-    printf("log done\n");
 }

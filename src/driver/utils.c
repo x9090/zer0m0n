@@ -1,7 +1,73 @@
 #include "utils.h"
+#include "monitor.h"
 #include "hook_reg.h"
 #include "query_information.h"
 #include "main.h"
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
+//		Parses received PIDs and adds them in the hidden list.
+//	Parameters :
+//		IRP buffer data.
+//	Return value :
+//		NTSTATUS : STATUS_SUCCESS on success.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS parse_pids(PCHAR pids)
+{
+	PCHAR start = NULL, current = NULL, data = NULL;
+	ULONG len, pid;
+	NTSTATUS status;
+	
+	if(pids == NULL)
+		return STATUS_INVALID_PARAMETER;
+	
+	status = RtlStringCbLengthA(pids, MAX_SIZE, &len);
+	if(!NT_SUCCESS(status))
+		return status;
+	
+	data = PoolAlloc(len+1);
+	if(data == NULL)
+		return STATUS_NO_MEMORY;
+	
+	status = RtlStringCbPrintfA(data, len+1, "%s", pids);
+	if(!NT_SUCCESS(status))
+	{
+		PoolFree(data);
+		return status;
+	}
+	
+	start = data;
+	current = data;
+	
+	while(*current != 0x00)
+	{
+		if(*current == ',' && current!=start)
+		{
+			*current = 0x00;
+			status = RtlCharToInteger(start, 10, &pid);
+			if(NT_SUCCESS(status) && pid!=0)
+			{
+				Dbg("pid to hide : %d\n", pid);
+				AddProcessToHideToList(pid);
+			}
+			start = current+1;
+		}
+		current++;
+	}
+	
+	if(start != current)
+	{
+		status = RtlCharToInteger(start, 10, &pid);
+		if(NT_SUCCESS(status) && pid!=0)
+		{
+			Dbg("pid to hide : %d\n", pid);
+			AddProcessToHideToList(pid);
+		}
+	}	
+	PoolFree(data);
+	
+	return STATUS_SUCCESS;
+}
 
 VOID Resolve_FunctionsAddr()
 {
@@ -15,19 +81,7 @@ VOID Resolve_FunctionsAddr()
 	
 	RtlInitUnicodeString(&usFuncName, L"ZwQueryInformationThread");
 	ZwQueryInformationThread = MmGetSystemRoutineAddress(&usFuncName);
-	
-	// RtlInitUnicodeString(&usFuncName, L"ZwCreateProcess");
-	// ZwCreateProcess = MmGetSystemRoutineAddress(&usFuncName);
-	
-	// RtlInitUnicodeString(&usFuncName, L"ZwCreateProcessEx");
-	// ZwCreateProcessEx = MmGetSystemRoutineAddress(&usFuncName);
-	
-	// RtlInitUnicodeString(&usFuncName, L"ZwCreateUserProcess");
-	// ZwCreateUserProcess = MmGetSystemRoutineAddress(&usFuncName);
-	
-	// RtlInitUnicodeString(&usFuncName, L"ZwResumeThread");
-	// ZwResumeThread = MmGetSystemRoutineAddress(&usFuncName);
-	
+		
 	RtlInitUnicodeString(&usFuncName, L"ZwQuerySection");
 	ZwQuerySection = MmGetSystemRoutineAddress(&usFuncName);
 }	

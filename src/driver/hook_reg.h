@@ -11,6 +11,19 @@ typedef NTSTATUS(*NTOPENKEY)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
 NTQUERYVALUEKEY Orig_NtQueryValueKey;
 NTOPENKEY Orig_NtOpenKey;
 
+// manque NtDeleteKey
+// manque NtSetValueKey
+// manque NtDeleteValueKey
+// manque NtRenameKey
+// manque NtEnumerateKey
+// manque NtEnumerateValueKey
+// manque NtQueryKey
+// manque NtQueryValueKey
+// manque NtCreateKey
+// manque NtCreateKeyEx
+// manque NtOpenKey
+// manque NtOpenKeyEx
+
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////

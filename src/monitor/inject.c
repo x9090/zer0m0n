@@ -469,9 +469,7 @@ uint32_t pid_from_process_name(const wchar_t *process_name)
     } while (Process32NextW(snapshot_handle, &row) != FALSE);
 
     CloseHandle(snapshot_handle);
-
-    fprintf(stderr, "[-] Error finding process by name: %S\n", process_name);
-    exit(1);
+    return 0;
 }
 
 int main()
@@ -519,7 +517,9 @@ int main()
     const wchar_t *dll_path = NULL, *app_path = NULL, *arguments = L"";
     const wchar_t *config_file = NULL, *from_process = NULL, *dbg_path = NULL;
     const wchar_t *curdir = NULL, *process_name = NULL, *cuckoo_path = NULL;
-    char s_pid[4];
+
+    char* s_pid = NULL;
+    char *processes_to_hide = NULL;
     uint32_t pid = 0, tid = 0, from = 0, inj_mode = INJECT_NONE;
     uint32_t show_window = SW_SHOWNORMAL, only_start = 0, resume_thread_ = 0;
     uint32_t dwBytesReturned = 0;
@@ -807,9 +807,21 @@ int main()
         hDevice = CreateFile(PATH_KERNEL_DRIVER, GENERIC_READ | GENERIC_WRITE, 0, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
         if(hDevice != INVALID_HANDLE_VALUE)
         {
+
+            // send processes pid to hide
+            processes_to_hide = malloc(MAX_PATH);
+            sprintf(processes_to_hide, "%d,%d,%d", GetCurrentProcessId(), pid_from_process_name(L"VBoxService.exe"), pid_from_process_name(L"VBoxTray.exe"));
+            if(DeviceIoControl(hDevice, IOCTL_PROC_TO_HIDE, processes_to_hide, strlen(processes_to_hide), NULL, 0, &dwBytesReturned, NULL))
+                fprintf(stderr, "[+] processes to hide [%s] sent to zer0m0n\n", processes_to_hide);
+            free(processes_to_hide);
+
+            // send malware's pid
+            s_pid = malloc(MAX_PATH);
             sprintf(s_pid, "%d", pid);
-            if(DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, 4, NULL, 0, &dwBytesReturned, NULL))
-                fprintf(stderr, "[+] malware pid : %d sent to zer0m0n\n", pid);
+            if(DeviceIoControl(hDevice, IOCTL_PROC_MALWARE, s_pid, strlen(s_pid), NULL, 0, &dwBytesReturned, NULL))
+                fprintf(stderr, "[+] malware pid : %s sent to zer0m0n\n", pid);
+            free(s_pid);
+        
 
             fprintf(stderr, "[+] cuckoo path : %ls\n", cuckoo_path);
             // send current directory
