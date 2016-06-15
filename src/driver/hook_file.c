@@ -6,6 +6,99 @@
 #include "comm.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//  Description :
+//  	Hide VBOX files
+//  Parameters :
+//  	See http://msdn.microsoft.com/en-us/library/cc512135%28v=vs.85%29.aspx
+//  Return value :
+//  	See http://msdn.microsoft.com/en-us/library/cc512135%28v=vs.85%29.aspx
+//	Process :
+//		if a malware tries to identify VirtualBox by trying to get attributes of vbox files, we return
+//		INVALID_FILE_ATTRIBUTES.
+//		we only log when there is an attempt to detect VirtualBox
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS Hooked_NtQueryAttributesFile(__in POBJECT_ATTRIBUTES ObjectAttributes,
+									  __out PFILE_BASIC_INFORMATION FileInformation)
+{
+	NTSTATUS statusCall, exceptionCode;
+	ULONG currentProcessId;
+	UNICODE_STRING kObjectName;
+	PWCHAR parameter = NULL; 
+	
+	PAGED_CODE();
+	
+	currentProcessId = (ULONG)PsGetCurrentProcessId();
+	statusCall = Orig_NtQueryAttributesFile(ObjectAttributes, FileInformation);
+	
+	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+	{
+		Dbg("Call NtQueryAttributesFile\n");
+
+		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		
+		if(NT_SUCCESS(statusCall))
+		{
+			__try
+			{
+				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
+				ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
+				ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
+				
+				kObjectName.Length = ObjectAttributes->ObjectName->Length;
+				kObjectName.MaximumLength = ObjectAttributes->ObjectName->Length;
+				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
+
+				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
+			}
+			__except(EXCEPTION_EXECUTE_HANDLER)
+			{
+				exceptionCode = GetExceptionCode();
+				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,FileHandle->0,buffer->ERROR,offset->0", exceptionCode)))
+					sendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, parameter);
+				else
+					sendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
+				if(parameter != NULL)
+					PoolFree(parameter);
+				return statusCall;
+			}			
+		
+			if(wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\VBoxMouse.sys") || 
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\VBoxGuest.sys") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\VBoxSF.sys") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\VBoxVideo.sys") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxControl.exe") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxDisp.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxHook.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxMRXNP.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGL.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLarrayspu.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLcrutil.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLerrorspu.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLfeedbackspu.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLpackspu.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxOGLpassthroughspu.dll") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxService.exe") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\VBoxTray.exe") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\vmmouse.sys") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Windows\\system32\\drivers\\vmhgfs.sys") ||
+				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Program Files\\oracle\\virtualbox guest additions\\"))
+			{
+				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,-1,s,filepath->%wZ", &kObjectName)))
+					sendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, parameter);
+				else
+					sendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, L"0,-1,s,filepath->ERROR");
+				if(parameter != NULL)
+					PoolFree(parameter);
+				return INVALID_FILE_ATTRIBUTES;
+			}
+		}
+		if(parameter != NULL)
+			PoolFree(parameter);
+	}
+	return statusCall;	
+}
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
 //  	Logs IOCTLs
 //  Parameters :
@@ -65,6 +158,9 @@ NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, parameter);
 			else
 				sendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, L"0,-1,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
+			if(parameter != NULL)
+				PoolFree(parameter);
+			return statusCall;
 		}
 
 		// log input and output buffer
@@ -236,7 +332,8 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 					sendLogs(currentProcessId, SIG_kernel32_DeleteFileW, parameter);
 				else 
 					sendLogs(currentProcessId, SIG_kernel32_DeleteFileW, L"0,-1,ss,FilePath->ERROR,FileToDump->ERROR");
-				PoolFree(parameter);
+				if(parameter != NULL)
+					PoolFree(parameter);
 				return Orig_NtSetInformationFile(FileHandle, IoStatusBlock, FileInformation, Length, FileInformationClass);
 			}
 			
@@ -272,11 +369,9 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 						sendLogs(currentProcessId, SIG_kernel32_DeleteFileW, L"0,0,ss,FilePath->ERROR,FileToDump->ERROR");
 					break;
 				}
-				if(file_to_dump.Buffer)
-					PoolFree(file_to_dump.Buffer);
-				if(nameInformation)
+				if(nameInformation != NULL)
 					PoolFree(nameInformation);
-				if(parameter)
+				if(parameter != NULL)
 					PoolFree(parameter);
 				
 				return STATUS_SUCCESS;
@@ -316,9 +411,9 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 					sendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, parameter);
 				else
 					sendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
-				if(parameter)
+				if(parameter != NULL)
 					PoolFree(parameter);
-				if(kFileName)
+				if(kFileName != NULL)
 					PoolFree(kFileName);
 				return statusCall;
 			}
@@ -367,10 +462,7 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 					if(NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,FileHandle->0x%08x,OriginalName->%wZ,RenamedName->%wZ,FileInformationClass->%d", statusCall, FileHandle, &(nameInformation->Name), &full_path, FileInformationClass)))
 						log_lvl = LOG_PARAM;	
 				}
-			}
-			
-			if(full_path.Buffer && full_path.Buffer != kFileName)
-				PoolFree(full_path.Buffer);
+			}		
 			if(kFileName)
 				PoolFree(kFileName);
 			if(nameInformation)
@@ -389,7 +481,7 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 				break;
 			}
 		}
-		if(parameter)
+		if(parameter != NULL)
 			PoolFree(parameter);
 		return statusCall;	
 	}
@@ -466,9 +558,8 @@ NTSTATUS Hooked_NtOpenFile(__out PHANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtOpenFile, parameter);
 			else 
 				sendLogs(currentProcessId, SIG_ntdll_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR");
-			PoolFree(parameter);
-			if(kObjectName.Buffer)
-				PoolFree(kObjectName.Buffer);
+			if(parameter != NULL)
+				PoolFree(parameter);
 			return statusCall;
 		}
 	
@@ -517,15 +608,10 @@ NTSTATUS Hooked_NtOpenFile(__out PHANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR");
 			break;
 		}
-		
-		if(kObjectName.Buffer && kObjectName.Buffer != full_path.Buffer)
-			PoolFree(kObjectName.Buffer);
 		if(parameter != NULL)
 			PoolFree(parameter);
 		if(nameInformation != NULL)
 			PoolFree(nameInformation);
-		if(full_path.Buffer)
-			PoolFree(full_path.Buffer);
 	}
 	return statusCall;	
 }
@@ -576,10 +662,8 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 			else
 			{
 				sendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
-				if(parameter)
+				if(parameter != NULL)
 					PoolFree(parameter);
-				if(kObjectName.Buffer)
-					PoolFree(kObjectName.Buffer);
 				return Orig_NtDeleteFile(ObjectAttributes);
 			}
 		}
@@ -590,10 +674,8 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 				sendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, parameter);
 			else
 				sendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
-			if(parameter)
+			if(parameter != NULL)
 				PoolFree(parameter);
-			if(kObjectName.Buffer)
-				PoolFree(kObjectName.Buffer);
 			return Orig_NtDeleteFile(ObjectAttributes);
 		}
 		
@@ -623,9 +705,6 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 			default:
 				sendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"1,0,ss,FileName->ERROR,FileToDump->ERROR");
 		}
-		
-		if(kObjectName.Buffer)
-			PoolFree(kObjectName.Buffer);
 		if(parameter != NULL)
 			PoolFree(parameter);
 		return STATUS_SUCCESS;
@@ -692,6 +771,9 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, parameter);
 			else
 				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,sss,FileHandle->0,length->0,buffer->ERROR,offset->0");
+			if(parameter != NULL)
+				PoolFree(parameter);
+			return statusCall;
 		}
 		// log buffer
 		buff = PoolAlloc(BUFFER_LOG_MAX);
@@ -818,9 +900,8 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, parameter);
 			else 
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->ERROR,DesiredAccess->ERROR,FileAttributes->ERROR,CreateDisposition->ERROR,CreateOptions->ERROR,ShareAccess->ERROR,FilePath->ERROR");
-			PoolFree(parameter);
-			if(kObjectName.Buffer)
-				PoolFree(kObjectName.Buffer);
+			if(parameter != NULL)
+				PoolFree(parameter);
 			return statusCall;
 		}
 	
@@ -873,15 +954,10 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->ERROR,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
 			break;
 		}
-		
-		if(kObjectName.Buffer && kObjectName.Buffer != full_path.Buffer)
-			PoolFree(kObjectName.Buffer);
 		if(parameter != NULL)
 			PoolFree(parameter);
 		if(nameInformation != NULL)
 			PoolFree(nameInformation);
-		if(full_path.Buffer)
-			PoolFree(full_path.Buffer);
 	}
 	return statusCall;
 }
@@ -944,6 +1020,9 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtWriteFile, parameter);
 			else
 				sendLogs(currentProcessId, SIG_ntdll_NtWriteFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
+			if(parameter != NULL)
+				PoolFree(parameter);
+			return statusCall;
 		}
 
 		// log buffer

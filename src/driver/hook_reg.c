@@ -43,9 +43,6 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 	PKEY_NAME_INFORMATION nameInformation = NULL;
 	KEY_VALUE_BASIC_INFORMATION *info = NULL;
 	
-	regkey.Buffer = NULL;
-	kValueName.Buffer = NULL;
-	
 	PAGED_CODE();
 	
 	currentProcessId = (ULONG)PsGetCurrentProcessId();
@@ -66,12 +63,6 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 			kValueName.Length = ValueName->Length;
 			kValueName.MaximumLength = ValueName->MaximumLength;
 			kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
-			if(!kValueName.Buffer)
-			{
-				if(parameter)
-					PoolFree(parameter);
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->ERROR,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
-			}
 			RtlCopyUnicodeString(&kValueName, ValueName);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
@@ -81,7 +72,8 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, parameter);
 			else 
 				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->ERROR,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
-			PoolFree(parameter);
+			if(parameter != NULL)
+				PoolFree(parameter);
 			return statusCall;
 		}
 		
@@ -104,7 +96,7 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 			}
 		}
 		else
-			RtlInitUnicodeString(&regkey, L"");
+			RtlInitUnicodeString(&regkey, L"nopz");
 			
 		if(NT_SUCCESS(statusCall))
 		{
@@ -137,10 +129,6 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 		
 		if(parameter != NULL)
 			PoolFree(parameter);
-		/*if(kValueName.Buffer != NULL)
-			PoolFree(kValueName.Buffer);
-		if(regkey.Buffer != NULL)
-			PoolFree(regkey.Buffer);*/
 	}
 	return statusCall;	
 }								 

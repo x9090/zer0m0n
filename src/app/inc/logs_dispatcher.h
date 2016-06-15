@@ -41,7 +41,6 @@
 
 
 #define NUMBER_OF_THREADS 1
-
 /*
 typedef struct _FILTER_MESSAGE_HEADER { 
   ULONG ReplyLength;

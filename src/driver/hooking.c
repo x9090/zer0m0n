@@ -293,6 +293,7 @@ VOID HookSSDT()
 	ULONG syscall_ZwReadVirtualMemory = 0, syscall_ZwResumeThread = 0, syscall_ZwWriteVirtualMemory = 0;
 	ULONG syscall_ZwSetContextThread = 0, syscall_ZwCreateThread = 0, syscall_ZwCreateThreadEx = 0;
 	ULONG syscall_ZwSystemDebugControl = 0, syscall_ZwQueueApcThread = 0, syscall_ZwDebugActiveProcess = 0;
+	ULONG syscall_ZwQueryAttributesFile = 0;
 	
 #ifdef _M_X64
 	KeServiceDescriptorTable = (pServiceDescriptorTableEntry)GetKeServiceDescriptorTable64();
@@ -323,47 +324,50 @@ VOID HookSSDT()
 	syscall_ZwQueueApcThread = GetSyscallNumber(pImageExportDirectory, "ZwQueueApcThread", offsetSyscall);
 	syscall_ZwSystemDebugControl = GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall);
 	syscall_ZwDebugActiveProcess = GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall);
+	syscall_ZwQueryAttributesFile = GetSyscallNumber(pImageExportDirectory, "ZwQueryAttributesFile", offsetSyscall);
 
 	irql = UnsetWP();
+	Install_Hook(*(PULONG)((PUCHAR)ZwOpenFile+offsetSyscall), (PVOID)Hooked_NtOpenFile, (PVOID*)&Orig_NtOpenFile, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwCreateSection+offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwQueryValueKey+offsetSyscall), (PVOID)Hooked_NtQueryValueKey, (PVOID*)&Orig_NtQueryValueKey, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwOpenProcess+offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwWriteFile+offsetSyscall), (PVOID)Hooked_NtWriteFile, (PVOID*)&Orig_NtWriteFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwCreateFile+offsetSyscall), (PVOID)Hooked_NtCreateFile, (PVOID*)&Orig_NtCreateFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwClose+offsetSyscall), (PVOID)Hooked_NtClose, (PVOID*)&Orig_NtClose, pStartSearchAddress, KiServiceTable);
-	Install_Hook(*(PULONG)((PUCHAR)ZwQueryValueKey+offsetSyscall), (PVOID)Hooked_NtQueryValueKey, (PVOID*)&Orig_NtQueryValueKey, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwOpenKey+offsetSyscall), (PVOID)Hooked_NtOpenKey, (PVOID*)&Orig_NtOpenKey, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwReadFile+offsetSyscall), (PVOID)Hooked_NtReadFile, (PVOID*)&Orig_NtReadFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwDeleteFile+offsetSyscall), (PVOID)Hooked_NtDeleteFile, (PVOID*)&Orig_NtDeleteFile, pStartSearchAddress, KiServiceTable);
-	Install_Hook(*(PULONG)((PUCHAR)ZwOpenFile+offsetSyscall), (PVOID)Hooked_NtOpenFile, (PVOID*)&Orig_NtOpenFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwSetInformationFile+offsetSyscall), (PVOID)Hooked_NtSetInformationFile, (PVOID*)&Orig_NtSetInformationFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwDeviceIoControlFile+offsetSyscall), (PVOID)Hooked_NtDeviceIoControlFile, (PVOID*)&Orig_NtDeviceIoControlFile, pStartSearchAddress, KiServiceTable);
-	Install_Hook(*(PULONG)((PUCHAR)ZwMapViewOfSection+offsetSyscall), (PVOID)Hooked_NtMapViewOfSection, (PVOID*)&Orig_NtMapViewOfSection, pStartSearchAddress, KiServiceTable);
-	Install_Hook(*(PULONG)((PUCHAR)ZwOpenProcess+offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);	
-	Install_Hook(*(PULONG)((PUCHAR)ZwCreateSection+offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);	
+	Install_Hook(*(PULONG)((PUCHAR)ZwMapViewOfSection+offsetSyscall), (PVOID)Hooked_NtMapViewOfSection, (PVOID*)&Orig_NtMapViewOfSection, pStartSearchAddress, KiServiceTable);		
 	Install_Hook(*(PULONG)((PUCHAR)ZwQuerySystemInformation+offsetSyscall), (PVOID)Hooked_NtQuerySystemInformation, (PVOID*)&Orig_NtQuerySystemInformation, pStartSearchAddress, KiServiceTable);
 	
-	if(syscall_ZwWriteVirtualMemory)
-		Install_Hook(syscall_ZwWriteVirtualMemory, (PVOID)Hooked_NtWriteVirtualMemory, (PVOID*)&Orig_NtWriteVirtualMemory, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwReadVirtualMemory)
 		Install_Hook(syscall_ZwReadVirtualMemory, (PVOID)Hooked_NtReadVirtualMemory, (PVOID*)&Orig_NtReadVirtualMemory, pStartSearchAddress, KiServiceTable);
+	if(syscall_ZwWriteVirtualMemory)
+		Install_Hook(syscall_ZwWriteVirtualMemory, (PVOID)Hooked_NtWriteVirtualMemory, (PVOID*)&Orig_NtWriteVirtualMemory, pStartSearchAddress, KiServiceTable);
+	if(syscall_ZwResumeThread)
+		Install_Hook(syscall_ZwResumeThread, (PVOID)Hooked_NtResumeThread, (PVOID*)&Orig_NtResumeThread, pStartSearchAddress, KiServiceTable);
+	if(syscall_ZwCreateThreadEx)
+		Install_Hook(syscall_ZwCreateThreadEx, (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);	
 	if(syscall_ZwCreateUserProcess)
 		Install_Hook(syscall_ZwCreateUserProcess, (PVOID)Hooked_NtCreateUserProcess, (PVOID*)&Orig_NtCreateUserProcess, pStartSearchAddress, KiServiceTable);	
 	if(syscall_ZwCreateProcess)
 		Install_Hook(syscall_ZwCreateProcess, (PVOID)Hooked_NtCreateProcess, (PVOID*)&Orig_NtCreateProcess, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwCreateProcessEx)
 		Install_Hook(syscall_ZwCreateProcessEx, (PVOID)Hooked_NtCreateProcessEx, (PVOID*)&Orig_NtCreateProcessEx, pStartSearchAddress, KiServiceTable);	
-	if(syscall_ZwResumeThread)
-		Install_Hook(syscall_ZwResumeThread, (PVOID)Hooked_NtResumeThread, (PVOID*)&Orig_NtResumeThread, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwSetContextThread)
 		Install_Hook(syscall_ZwSetContextThread, (PVOID)Hooked_NtSetContextThread, (PVOID*)&Orig_NtSetContextThread, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwCreateThread)
 		Install_Hook(syscall_ZwCreateThread, (PVOID)Hooked_NtCreateThread, (PVOID*)&Orig_NtCreateThread, pStartSearchAddress, KiServiceTable);
-	if(syscall_ZwCreateThreadEx)
-		Install_Hook(syscall_ZwCreateThreadEx, (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwSystemDebugControl)
 		Install_Hook(syscall_ZwSystemDebugControl, (PVOID)Hooked_NtSystemDebugControl, (PVOID*)&Orig_NtSystemDebugControl, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwQueueApcThread)
 		Install_Hook(syscall_ZwQueueApcThread, (PVOID)Hooked_NtQueueApcThread, (PVOID*)&Orig_NtQueueApcThread, pStartSearchAddress, KiServiceTable);
 	if(syscall_ZwDebugActiveProcess)
 		Install_Hook(syscall_ZwDebugActiveProcess, (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);	
+	if(syscall_ZwQueryAttributesFile)
+		Install_Hook(syscall_ZwQueryAttributesFile, (PVOID)Hooked_NtQueryAttributesFile, (PVOID*)&Orig_NtQueryAttributesFile, pStartSearchAddress, KiServiceTable);
 	
 	SetWP(irql);
 }

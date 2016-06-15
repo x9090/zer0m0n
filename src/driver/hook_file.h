@@ -1,8 +1,8 @@
 #ifndef __HOOK_FILE_H
 #define __HOOK_FILE_H
 
-#define FILE_SHARE_READ 0x00000001
-
+#define FILE_SHARE_READ 			0x00000001
+#define INVALID_FILE_ATTRIBUTES 	-1
 /////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 /////////////////////////////////////////////////////////////////////////////
@@ -14,6 +14,7 @@ typedef NTSTATUS(*NTOPENFILE)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, PIO_STAT
 typedef NTSTATUS(*NTSETINFORMATIONFILE)(HANDLE, PIO_STATUS_BLOCK, PVOID, ULONG, FILE_INFORMATION_CLASS);
 typedef NTSTATUS(*NTCLOSE)(HANDLE);
 typedef NTSTATUS(*NTDEVICEIOCONTROLFILE)(HANDLE, HANDLE, PIO_APC_ROUTINE, PVOID, PIO_STATUS_BLOCK, ULONG, PVOID, ULONG, PVOID, ULONG);
+typedef NTSTATUS(*NTQUERYATTRIBUTESFILE)(POBJECT_ATTRIBUTES, PFILE_BASIC_INFORMATION);
 
 NTWRITEFILE Orig_NtWriteFile;
 NTCREATEFILE Orig_NtCreateFile;
@@ -23,13 +24,15 @@ NTOPENFILE Orig_NtOpenFile;
 NTSETINFORMATIONFILE Orig_NtSetInformationFile;
 NTCLOSE Orig_NtClose;
 NTDEVICEIOCONTROLFILE Orig_NtDeviceIoControlFile;
+NTQUERYATTRIBUTESFILE Orig_NtQueryAttributesFile;
 
-// MANQUE NTQueryInformationFile !!!!
-// MANQUE NtQueryAttributesFile
 
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
+NTSTATUS Hooked_NtQueryAttributesFile(__in POBJECT_ATTRIBUTES ObjectAttributes,
+									  __out PFILE_BASIC_INFORMATION FileInformation);
+
 NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 									  __in_opt HANDLE Event,
 									  __in_opt PIO_APC_ROUTINE ApcRoutine,

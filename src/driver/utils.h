@@ -19,6 +19,18 @@ NTSTATUS parse_pids(PCHAR pids);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
+//		wcsstr case-insensitive version (scans "haystack" for "needle").
+//	Parameters :
+//		_in_ PWCHAR *haystack :	PWCHAR string to be scanned.
+//		_in_ PWCHAR *needle :	PWCHAR string to find.
+//	Return value :
+//		PWCHAR : NULL if not found, otherwise "needle" first occurence pointer in "haystack".
+//	Notes : http://www.codeproject.com/Articles/383185/SSE-accelerated-case-insensitive-substring-search
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+PWCHAR wcsistr(PWCHAR wcs1, PWCHAR wcs2);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
 //		Retrieves and returns the thread identifier from its handle.
 //	Parameters :
 //		_in_ HANDLE hThread : Thread handle.
