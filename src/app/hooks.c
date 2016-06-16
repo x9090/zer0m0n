@@ -5214,11 +5214,10 @@ static const char *g_explain_paramtypes[] = {
     "Pxu",
     // NtCreateFile
     "sssssss",
-    //"Pxiiiiuu",
     // NtCreateKey
-    "PxiiIuu",
+    "sssssss",
     // NtCreateMutant
-    "Pxiu",
+    "ssss",
     // NtCreateProcess
     "ssss",
     // NtCreateProcessEx
@@ -5270,9 +5269,9 @@ static const char *g_explain_paramtypes[] = {
     // NtOpenFile
     "sssss",
     // NtOpenKey
-    "Pxu",
+    "sss",
     // NtOpenKeyEx
-    "Pxiu",
+    "ssss",
     // NtOpenProcess
     "sss",
     // NtOpenSection

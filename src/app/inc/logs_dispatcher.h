@@ -41,12 +41,7 @@
 
 
 #define NUMBER_OF_THREADS 1
-/*
-typedef struct _FILTER_MESSAGE_HEADER { 
-  ULONG ReplyLength;
-  ULONGLONG MessageId;
-} FILTER_MESSAGE_HEADER, *PFILTER_MESSAGE_HEADER;
-*/
+
 typedef struct _KERNEL_MESSAGE
 {
 	FILTER_MESSAGE_HEADER MessageHeader;

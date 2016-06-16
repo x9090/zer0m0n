@@ -3,6 +3,7 @@
 #include "hook_reg.h"
 #include "hook_process.h"
 #include "hook_file.h"
+#include "hook_misc.h"
 #include "struct.h"
 
 PVOID MapNtdllIntoMemory()
@@ -293,7 +294,7 @@ VOID HookSSDT()
 	ULONG syscall_ZwReadVirtualMemory = 0, syscall_ZwResumeThread = 0, syscall_ZwWriteVirtualMemory = 0;
 	ULONG syscall_ZwSetContextThread = 0, syscall_ZwCreateThread = 0, syscall_ZwCreateThreadEx = 0;
 	ULONG syscall_ZwSystemDebugControl = 0, syscall_ZwQueueApcThread = 0, syscall_ZwDebugActiveProcess = 0;
-	ULONG syscall_ZwQueryAttributesFile = 0;
+	ULONG syscall_ZwQueryAttributesFile = 0, syscall_ZwCreateMutant = 0;
 	
 #ifdef _M_X64
 	KeServiceDescriptorTable = (pServiceDescriptorTableEntry)GetKeServiceDescriptorTable64();
@@ -325,6 +326,7 @@ VOID HookSSDT()
 	syscall_ZwSystemDebugControl = GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall);
 	syscall_ZwDebugActiveProcess = GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall);
 	syscall_ZwQueryAttributesFile = GetSyscallNumber(pImageExportDirectory, "ZwQueryAttributesFile", offsetSyscall);
+	syscall_ZwCreateMutant = GetSyscallNumber(pImageExportDirectory, "ZwCreateMutant", offsetSyscall);
 
 	irql = UnsetWP();
 	Install_Hook(*(PULONG)((PUCHAR)ZwOpenFile+offsetSyscall), (PVOID)Hooked_NtOpenFile, (PVOID*)&Orig_NtOpenFile, pStartSearchAddress, KiServiceTable);
@@ -341,6 +343,8 @@ VOID HookSSDT()
 	Install_Hook(*(PULONG)((PUCHAR)ZwDeviceIoControlFile+offsetSyscall), (PVOID)Hooked_NtDeviceIoControlFile, (PVOID*)&Orig_NtDeviceIoControlFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(*(PULONG)((PUCHAR)ZwMapViewOfSection+offsetSyscall), (PVOID)Hooked_NtMapViewOfSection, (PVOID*)&Orig_NtMapViewOfSection, pStartSearchAddress, KiServiceTable);		
 	Install_Hook(*(PULONG)((PUCHAR)ZwQuerySystemInformation+offsetSyscall), (PVOID)Hooked_NtQuerySystemInformation, (PVOID*)&Orig_NtQuerySystemInformation, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwCreateKey+offsetSyscall), (PVOID)Hooked_NtCreateKey, (PVOID*)&Orig_NtCreateKey, pStartSearchAddress, KiServiceTable);
+	Install_Hook(*(PULONG)((PUCHAR)ZwOpenKeyEx+offsetSyscall), (PVOID)Hooked_NtOpenKeyEx, (PVOID*)&Orig_NtOpenKeyEx, pStartSearchAddress, KiServiceTable);
 	
 	if(syscall_ZwReadVirtualMemory)
 		Install_Hook(syscall_ZwReadVirtualMemory, (PVOID)Hooked_NtReadVirtualMemory, (PVOID*)&Orig_NtReadVirtualMemory, pStartSearchAddress, KiServiceTable);
@@ -368,6 +372,8 @@ VOID HookSSDT()
 		Install_Hook(syscall_ZwDebugActiveProcess, (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);	
 	if(syscall_ZwQueryAttributesFile)
 		Install_Hook(syscall_ZwQueryAttributesFile, (PVOID)Hooked_NtQueryAttributesFile, (PVOID*)&Orig_NtQueryAttributesFile, pStartSearchAddress, KiServiceTable);
+	if(syscall_ZwCreateMutant)
+		Install_Hook(syscall_ZwCreateMutant, (PVOID)Hooked_NtCreateMutant, (PVOID*)&Orig_NtCreateMutant, pStartSearchAddress, KiServiceTable);
 	
 	SetWP(irql);
 }

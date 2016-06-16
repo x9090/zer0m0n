@@ -322,16 +322,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 			pipe("FILE_DEL:%Z", pw_pathfile);
 			free(pw_pathfile);
 		}
-		
-		// if NtWriteFile() is called, notifies cuckoo that a file has to be dumped
-		if((log.sig_func == SIG_ntdll_NtWriteFile) && !log.ret)
-		{
-			pw_pathfile = (PWCHAR)malloc(1024*sizeof(WCHAR));
-			mbstowcs(pw_pathfile, log.arguments[1].value, strlen(log.arguments[1].value)+1);
-			pipe("FILE_NEW:%Z", pw_pathfile);
-			free(pw_pathfile);
-		}
-		
+				
 		// notifies analyzer.py that a process has terminated
 		if((log.sig_func == SIG_ntdll_NtTerminateProcess) && !log.ret)
 			pipe("KTERMINATE:%d", atoi(log.arguments[1].value));

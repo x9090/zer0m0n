@@ -82,7 +82,6 @@ NTSTATUS transact_named_pipe(HANDLE pipe_handle,
     uintptr_t *written)
 {
 
-    printf("transact_named_pipe...\n");
     if(NtFsControlFile == NULL && NtWaitForSingleObject == NULL) {
         DWORD _written = 0;
         TransactNamedPipe(pipe_handle, (void *) inbuf, inbufsz,
@@ -266,8 +265,6 @@ int pipe(const char *fmt, ...)
         transact_named_pipe(g_pipe_handle, buf, len, buf, sizeof(buf), NULL);
         ret = 0;
     }
-
-    printf("pipe done\n");
 
     LeaveCriticalSection(&g_cs);
     return ret;

@@ -1,15 +1,18 @@
 #ifndef __HOOK_REG_H
 #define __HOOK_REG_H
 
-
 /////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 /////////////////////////////////////////////////////////////////////////////
 typedef NTSTATUS(*NTQUERYVALUEKEY)(HANDLE,PUNICODE_STRING, KEY_VALUE_INFORMATION_CLASS, PVOID, ULONG, PULONG);
 typedef NTSTATUS(*NTOPENKEY)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
+typedef NTSTATUS(*NTOPENKEYEX)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG);
+typedef NTSTATUS(*NTCREATEKEY)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG, PUNICODE_STRING, ULONG, PULONG);
 
+NTCREATEKEY Orig_NtCreateKey;
 NTQUERYVALUEKEY Orig_NtQueryValueKey;
 NTOPENKEY Orig_NtOpenKey;
+NTOPENKEYEX Orig_NtOpenKeyEx;
 
 // manque NtDeleteKey
 // manque NtSetValueKey
@@ -19,10 +22,6 @@ NTOPENKEY Orig_NtOpenKey;
 // manque NtEnumerateValueKey
 // manque NtQueryKey
 // manque NtQueryValueKey
-// manque NtCreateKey
-// manque NtCreateKeyEx
-// manque NtOpenKey
-// manque NtOpenKeyEx
 
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
@@ -37,5 +36,18 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 NTSTATUS Hooked_NtOpenKey(__out PHANDLE KeyHandle,
 						  __in ACCESS_MASK DesiredAccess,
 						  __in POBJECT_ATTRIBUTES ObjectAttributes);
+						  
+NTSTATUS Hooked_NtOpenKeyEx(__out PHANDLE KeyHandle,
+						    __in ACCESS_MASK DesiredAccess,
+						    __in POBJECT_ATTRIBUTES ObjectAttributes,
+							__in ULONG OpenOptions);
+							
+NTSTATUS Hooked_NtCreateKey(__out PHANDLE KeyHandle,
+							__in ACCESS_MASK DesiredAccess,
+							__in POBJECT_ATTRIBUTES ObjectAttributes,
+							__in ULONG TitleIndex,
+							__in_opt PUNICODE_STRING Class,
+							__in ULONG CreateOptions,
+							__out_opt PULONG Disposition);
 						  
 #endif

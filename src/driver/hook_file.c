@@ -896,10 +896,10 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,FileHandle->ERROR,DesiredAccess->ERROR,FileAttributes->ERROR,CreateDisposition->ERROR,CreateOptions->ERROR,ShareAccess->ERROR,FilePath->ERROR", exceptionCode)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR", exceptionCode)))
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->ERROR,DesiredAccess->ERROR,FileAttributes->ERROR,CreateDisposition->ERROR,CreateOptions->ERROR,ShareAccess->ERROR,FilePath->ERROR");
+				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -948,10 +948,10 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"1,0,sssssss,FileHandle->ERROR,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
+				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"1,0,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->ERROR,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
+				sendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
 			break;
 		}
 		if(parameter != NULL)
