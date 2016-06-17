@@ -5235,9 +5235,9 @@ static const char *g_explain_paramtypes[] = {
     // NtDeleteFile
     "s",
     // NtDeleteKey
-    "pu",
+    "ss",
     // NtDeleteValueKey
-    "pu",
+    "ss",
     // NtDeviceIoControlFile
     "ssss",
     // NtDuplicateObject

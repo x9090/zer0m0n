@@ -3,7 +3,11 @@
 
 #include <fltkernel.h>
 
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define BUFFER_LOG_MAX 	256
+#define OBJECT_NAME_INFORMATION_REQUIRED_SIZE \
+	sizeof(OBJECT_NAME_INFORMATION) + sizeof(WCHAR) + MAX_PATH
+	
 
 typedef struct _THREAD_BASIC_INFORMATION {
     NTSTATUS	ExitStatus;
@@ -16,6 +20,7 @@ typedef struct _THREAD_BASIC_INFORMATION {
 
 VOID Resolve_FunctionsAddr();
 NTSTATUS parse_pids(PCHAR pids);
+NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :

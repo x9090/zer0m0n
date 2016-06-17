@@ -8,13 +8,16 @@ typedef NTSTATUS(*NTQUERYVALUEKEY)(HANDLE,PUNICODE_STRING, KEY_VALUE_INFORMATION
 typedef NTSTATUS(*NTOPENKEY)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
 typedef NTSTATUS(*NTOPENKEYEX)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG);
 typedef NTSTATUS(*NTCREATEKEY)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, ULONG, PUNICODE_STRING, ULONG, PULONG);
+typedef NTSTATUS(*NTDELETEKEY)(HANDLE);
+typedef NTSTATUS(*NTDELETEVALUEKEY)(HANDLE, PUNICODE_STRING);
 
 NTCREATEKEY Orig_NtCreateKey;
 NTQUERYVALUEKEY Orig_NtQueryValueKey;
 NTOPENKEY Orig_NtOpenKey;
 NTOPENKEYEX Orig_NtOpenKeyEx;
+NTDELETEKEY Orig_NtDeleteKey;
+NTDELETEVALUEKEY Orig_NtDeleteValueKey;
 
-// manque NtDeleteKey
 // manque NtSetValueKey
 // manque NtDeleteValueKey
 // manque NtRenameKey
@@ -26,6 +29,11 @@ NTOPENKEYEX Orig_NtOpenKeyEx;
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
+NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
+								 __in PUNICODE_STRING ValueName);
+
+NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle);
+
 NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle, 
 								 __in PUNICODE_STRING ValueName,
 								 __in KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,

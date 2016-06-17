@@ -4,6 +4,31 @@
 #include "query_information.h"
 #include "main.h"
 
+NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey)
+{
+	ULONG buffer_length, length;
+	KEY_NAME_INFORMATION *key_name_information;
+	
+	buffer_length = sizeof(KEY_NAME_INFORMATION) + MAX_SIZE * sizeof(wchar_t);	
+	key_name_information = PoolAlloc(buffer_length);
+	if(key_name_information == NULL)
+		return STATUS_NO_MEMORY;
+	
+	if(!NT_SUCCESS(ZwQueryKey(KeyHandle, KeyNameInformation, key_name_information, buffer_length, &length)))
+	{
+		PoolFree(key_name_information);
+		return STATUS_INVALID_PARAMETER;
+	}
+	
+	length = key_name_information->NameLength / sizeof(wchar_t);
+	RtlCopyMemory(&regkey[0], key_name_information->Name, length * sizeof(wchar_t));
+	regkey[length] = 0;
+	
+	if(key_name_information != NULL)
+		PoolFree(key_name_information);
+	return STATUS_SUCCESS;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
 //		wcsstr case-insensitive version (scans "haystack" for "needle").

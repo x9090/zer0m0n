@@ -5,6 +5,139 @@
 #include "main.h"
 #include "comm.h"
 
+NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
+								 __in PUNICODE_STRING ValueName)
+{
+	NTSTATUS statusCall, exceptionCode;
+	UNICODE_STRING kValueName;
+	ULONG currentProcessId;
+	USHORT log_lvl = LOG_ERROR;
+	PWCHAR parameter = NULL;
+	
+	PAGED_CODE();
+	
+	currentProcessId = (ULONG)PsGetCurrentProcessId();
+		
+	statusCall = Orig_NtDeleteValueKey(KeyHandle, ValueName);
+		
+	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+	{
+		Dbg("call NtDeleteValueKey\n");
+		
+		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		kValueName.Buffer = NULL;
+		
+		__try
+		{
+			ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
+			
+			kValueName.Length = ValueName->Length;
+			kValueName.MaximumLength = ValueName->MaximumLength;
+			kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
+			RtlCopyUnicodeString(&kValueName, ValueName);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			exceptionCode = GetExceptionCode();
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ss,KeyHandle->0,ValueName->ERROR", exceptionCode)))
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
+			else 
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
+			if(parameter != NULL)
+				PoolFree(parameter);
+			return statusCall;
+		}
+		
+		if(NT_SUCCESS(statusCall))
+		{
+			log_lvl = LOG_SUCCESS;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ss,KeyHandle->0x%08x,ValueName->%wZ", KeyHandle, &kValueName)))
+				log_lvl = LOG_PARAM;
+		}
+		else
+		{
+			log_lvl = LOG_ERROR;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ss,KeyHandle->0x%08x,ValueName->%wZ", statusCall, KeyHandle, &kValueName)))
+				log_lvl = LOG_PARAM;
+		}
+		
+		switch(log_lvl)
+		{
+			case LOG_PARAM:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
+			break;
+			case LOG_SUCCESS:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"1,0,ss,KeyHandle->0,ValueName->ERROR");
+			break;
+			default:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
+			break;
+		}
+		if(parameter != NULL)
+			PoolFree(parameter);
+	}
+	return statusCall;		
+}
+
+NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
+{
+	NTSTATUS statusCall;
+	ULONG currentProcessId;
+	USHORT log_lvl = LOG_ERROR;
+	PWCHAR parameter = NULL;
+	PWCHAR regkey = NULL;
+	
+	PAGED_CODE();
+	
+	currentProcessId = (ULONG)PsGetCurrentProcessId();
+		
+	statusCall = Orig_NtDeleteKey(KeyHandle);
+		
+	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+	{
+		Dbg("call NtDeleteKey\n");
+		
+		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		
+		// get the registry key name from the KeyHandle
+		regkey = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		if(!NT_SUCCESS(reg_get_key(KeyHandle, regkey)))
+			regkey = L"";
+			
+		if(NT_SUCCESS(statusCall))
+		{
+			log_lvl = LOG_SUCCESS;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ss,KeyHandle->0x%08x,RegKey->%ws", KeyHandle, regkey)))
+				log_lvl = LOG_PARAM;
+		}
+		else
+		{
+			log_lvl = LOG_ERROR;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ss,KeyHandle->0x%08x,RegKey->%ws", KeyHandle, regkey)))
+				log_lvl = LOG_PARAM;
+		}
+		
+		switch(log_lvl)
+		{
+			case LOG_PARAM:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, parameter);
+			break;
+			case LOG_SUCCESS:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"1,0,ss,KeyHandle->0,RegKey->ERROR");
+			break;
+			default:
+				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"0,-1,ss,KeyHandle->0,RegKey->ERROR");
+			break;
+		}
+		
+		if(parameter != NULL)
+			PoolFree(parameter);
+		if(regkey != NULL)
+			PoolFree(regkey);
+	}
+	return statusCall;		
+}
+
 NTSTATUS Hooked_NtOpenKeyEx(__out PHANDLE KeyHandle,
 						    __in ACCESS_MASK DesiredAccess,
 						    __in POBJECT_ATTRIBUTES ObjectAttributes,
@@ -295,14 +428,12 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 								 __in ULONG Length,
 								 __out PULONG ResultLength)
 {	
-	NTSTATUS statusCall, status, exceptionCode;
-	ULONG currentProcessId, regtype = REG_NONE, regkey_len = 0;
-	USHORT log_lvl = LOG_ERROR;
-	ULONG sizeNeeded = 0;
-	PWCHAR parameter = NULL;
-	UNICODE_STRING regkey;
+	NTSTATUS statusCall, exceptionCode;
 	UNICODE_STRING kValueName;
-	PKEY_NAME_INFORMATION nameInformation = NULL;
+	ULONG currentProcessId, regtype = REG_NONE;
+	USHORT log_lvl = LOG_ERROR;
+	PWCHAR parameter = NULL;
+	PWCHAR regkey = NULL;
 	KEY_VALUE_BASIC_INFORMATION *info = NULL;
 	
 	PAGED_CODE();
@@ -340,25 +471,9 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 		}
 		
 		// get the registry key name from the KeyHandle
-		if(NT_SUCCESS(ZwQueryKey(KeyHandle, KeyNameInformation, NULL, 0, &sizeNeeded)))
-		{
-			nameInformation = PoolAlloc(sizeNeeded * sizeof(WCHAR));
-			if(nameInformation)
-			{
-				RtlZeroMemory(nameInformation, sizeNeeded * sizeof(WCHAR));
-				if(NT_SUCCESS(ZwQueryKey(KeyHandle, KeyNameInformation, nameInformation, sizeNeeded * sizeof(WCHAR), &regkey_len)))
-				{
-					Dbg("regkey : %ws\n", nameInformation->Name);
-					regkey.MaximumLength = MAX_SIZE;
-					regkey.Length = MAX_SIZE;
-					regkey.Buffer = PoolAlloc(MAX_SIZE);
-					RtlInitUnicodeString(&regkey, nameInformation->Name);
-				}
-				PoolFree(nameInformation);
-			}
-		}
-		else
-			RtlInitUnicodeString(&regkey, L"nopz");
+		regkey = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		if(!NT_SUCCESS(reg_get_key(KeyHandle, regkey)))
+			regkey = L"";
 			
 		if(NT_SUCCESS(statusCall))
 		{
@@ -366,13 +481,13 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 			regtype = info->Type;
 
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,KeyHandle->0x%08x,KeyValueInformationClass->%d,RegKey->%wZ,ValueName->%wZ,RegType->%d", KeyHandle, KeyValueInformationClass, &regkey, &kValueName, regtype)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,KeyHandle->0x%08x,KeyValueInformationClass->%d,RegKey->%ws,ValueName->%wZ,RegType->%d", KeyHandle, KeyValueInformationClass, regkey, &kValueName, regtype)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssss,KeyHandle->0x%08x,KeyValueInformationClass->%d,RegKey->%wZ,ValueName->%wZ,RegType->%d", statusCall, KeyHandle, KeyValueInformationClass, &regkey, &kValueName, regtype)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssss,KeyHandle->0x%08x,KeyValueInformationClass->%d,RegKey->%ws,ValueName->%wZ,RegType->%d", statusCall, KeyHandle, KeyValueInformationClass, regkey, &kValueName, regtype)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -391,6 +506,8 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 		
 		if(parameter != NULL)
 			PoolFree(parameter);
+		if(regkey != NULL)
+			PoolFree(regkey);
 	}
 	return statusCall;	
 }								 
