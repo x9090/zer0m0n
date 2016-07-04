@@ -229,7 +229,7 @@ VOID CopyBuffer(PWCHAR dst, PUCHAR src, ULONG_PTR size)
 			if(i >= (BUFFER_LOG_MAX/2))
 				break;
 			
-			if( (src[i] >= 0x20) && (src[i] <= 0x7E) )
+			if((src[i] >= 0x20) && (src[i] <= 0x7E) && (src[i] != 0x2C))
 			{
 				RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"%c", src[i]);
 				n++;

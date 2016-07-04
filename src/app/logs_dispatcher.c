@@ -324,9 +324,10 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		}
 				
 		// notifies analyzer.py that a process has terminated
+		/*
 		if((log.sig_func == SIG_ntdll_NtTerminateProcess) && !log.ret)
 			pipe("KTERMINATE:%d", atoi(log.arguments[1].value));
-
+		*/
 		if(log.procname)
 		{
 			free(log.procname);

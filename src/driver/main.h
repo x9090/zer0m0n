@@ -38,7 +38,7 @@
 #include <ntddk.h>
 #include <windef.h>
 
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
 	#define Dbg(fmt, ...) \
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, fmt, __VA_ARGS__);

@@ -736,7 +736,7 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 	ULONG currentProcessId, returnLength;
 	USHORT log_lvl = LOG_ERROR;
 	LARGE_INTEGER kByteOffset;
-	ULONG_PTR kBufferSize;
+	ULONG kBufferSize = 0;
 	PUCHAR kBuffer = NULL;
 	PWCHAR buff = NULL;
 	PWCHAR parameter = NULL;
@@ -756,21 +756,27 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 		
 		__try
 		{
-			ProbeForRead(IoStatusBlock, sizeof(IO_STATUS_BLOCK), 1);
-			ProbeForRead((PVOID)IoStatusBlock->Information, sizeof(ULONG), 1);
+			if(IoStatusBlock)
+			{
+				ProbeForRead(IoStatusBlock, sizeof(IO_STATUS_BLOCK), 1);
+				ProbeForRead((PVOID)IoStatusBlock->Information, sizeof(ULONG), 1);
+				kBufferSize = IoStatusBlock->Information;
+			}
 			if(ByteOffset)
 				kByteOffset = ProbeForReadLargeInteger(ByteOffset);
-			kBufferSize = IoStatusBlock->Information;
-			ProbeForRead(Buffer, kBufferSize, 1);
-			kBuffer = Buffer;
+			if(Buffer)
+			{
+				ProbeForRead(Buffer, kBufferSize, 1);
+				kBuffer = Buffer;
+			}
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,FileHandle->0,length->0,buffer->ERROR,offset->0", exceptionCode)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR", exceptionCode)))
 				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,sss,FileHandle->0,length->0,buffer->ERROR,offset->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -782,13 +788,13 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,FileHandle->0x%08x,length->%d,buffer->%ws,offset->%d", FileHandle, Length, buff, kByteOffset.QuadPart)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,FileHandle->0x%08x,length->%d,offset->%d, buffer->%ws", FileHandle, Length, kByteOffset.QuadPart, buff)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,FileHandle->0x%08x,length->%d,buffer->%ws,offset->%d", statusCall, FileHandle, Length, buff, kByteOffset.QuadPart)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,FileHandle->0x%08x,length->%d,offset->%d, buffer->%ws", statusCall, FileHandle, Length, kByteOffset.QuadPart, buff)))
 				log_lvl = LOG_PARAM;
 		}
 			
@@ -798,10 +804,10 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"1,0,ssss,FileHandle->0,length->0,buffer->ERROR,offset->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"1,0,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 				break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,buffer->ERROR,offset->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 		}
 
 		if(parameter != NULL)
@@ -812,8 +818,6 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 	return statusCall;			
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
 //		Logs file creation and/or file opening.
 //	Parameters :
 //		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff566424(v=vs.85).aspx

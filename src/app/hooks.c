@@ -5277,7 +5277,7 @@ static const char *g_explain_paramtypes[] = {
     // NtOpenSection
     "Pxu",
     // NtOpenThread
-    "ssss",
+    "sss",
     // NtProtectVirtualMemory
     "pPLi",
     // NtQueryAttributesFile
@@ -5318,7 +5318,7 @@ static const char *g_explain_paramtypes[] = {
     // NtSetInformationFile
     "ssss",
     // NtSetValueKey
-    "piiiRu",
+    "ssssss",
     // NtSuspendThread
     "pI",
     // NtTerminateProcess

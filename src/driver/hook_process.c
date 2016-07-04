@@ -142,7 +142,7 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, targetProcessId;
 	ULONG kClientId = 0;
-	HANDLE kThreadHandle;
+	HANDLE kThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	
@@ -160,20 +160,24 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 		
 		__try
 		{
-			ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ClientId, sizeof(CLIENT_ID), 1);
-			
-			kThreadHandle = *ThreadHandle;
+			if(ThreadHandle)
+			{
+				ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
+				kThreadHandle = *ThreadHandle;
+			}
 			if(ClientId)
+			{
+				ProbeForRead(ClientId, sizeof(CLIENT_ID), 1);
 				kClientId = (ULONG)ClientId->UniqueProcess;
+			}
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessIdentifier->0", exceptionCode)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0", exceptionCode)))
 				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,ssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessIdentifier->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -185,24 +189,24 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 			
 			if(IsProcessInList(targetProcessId, pHiddenProcessListHead))
 			{
-				ZwClose(kThreadHandle);
-				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,3221225485,ssss,ThreadHandle->0,DesiredAccess->0x%08x,ThreadName->NULL,ProcessIdentifier->%d", DesiredAccess, kClientId))) 
+				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,3221225485,sss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", kThreadHandle, DesiredAccess, kClientId))) 
 					sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
 				else
-					sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,3221225485,ssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessIdentifier->0");	
+					sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,3221225485,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
 				if(parameter)
 					PoolFree(parameter);
+				*ThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
 				return STATUS_INVALID_PARAMETER;
 			}
 			
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName-%ws,ProcessIdentifier->%d", ThreadHandle, DesiredAccess, kClientId)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", kThreadHandle, DesiredAccess, kClientId)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName->%ws,ProcessIdentifier->%d", statusCall, ThreadHandle, DesiredAccess, kClientId)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", statusCall, kThreadHandle, DesiredAccess, kClientId)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -213,11 +217,11 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,ssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessIdentifier->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"1,0,ssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessIdentifier->0");
+				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"1,0,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -317,11 +321,10 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 {
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId;
-	UNICODE_STRING SectionName;
-	HANDLE kSectionHandle, kRootDirectory;
 	UNICODE_STRING kObjectName;
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
 	USHORT log_lvl = LOG_ERROR;
+	HANDLE kSectionHandle = (HANDLE)INVALID_HANDLE_VALUE;
+	HANDLE kRootDirectory;
 	PWCHAR parameter = NULL;
 	
 	PAGED_CODE();
@@ -333,14 +336,15 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
 		Dbg("call NtCreateSection\n");
-	
 		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
 		
 		__try
 		{
-			ProbeForRead(SectionHandle, sizeof(HANDLE), 1);
-			kSectionHandle = *SectionHandle;
-			
+			if(SectionHandle)
+			{			
+				ProbeForRead(SectionHandle, sizeof(HANDLE), 1);
+				kSectionHandle = *SectionHandle;
+			}
 			if(ObjectAttributes != NULL)
 			{
 				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
@@ -351,13 +355,12 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
-				RtlInitUnicodeString(&SectionName, kObjectName.Buffer);
 			}
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,0x%08x,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL", exceptionCode)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL", exceptionCode)))
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, parameter);
 			else
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"0,-1,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
@@ -369,13 +372,13 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssss,SectionHandle->0x%08x,DesiredAccess->0x%08x,SectionPageProtection->%d,FileHandle->0x%08x,ObjectHandle->0x%08x,SectionName->%wZ", kSectionHandle, DesiredAccess, SectionPageProtection, FileHandle, kRootDirectory, &SectionName)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssss,SectionHandle->0x%08x,DesiredAccess->0x%08x,SectionPageProtection->%d,FileHandle->0x%08x,ObjectHandle->0x%08x,SectionName->%wZ", kSectionHandle, DesiredAccess, SectionPageProtection, FileHandle, kRootDirectory, &kObjectName)))
 				log_lvl = LOG_PARAM;	
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,SectionHandle->0x%08x,DesiredAccess->0x%08x,SectionPageProtection->%d,FileHandle->0x%08x,ObjectHandle->0x%08x,SectionName->%wZ", statusCall, kSectionHandle, DesiredAccess, SectionPageProtection, FileHandle, kRootDirectory, &SectionName)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,SectionHandle->0x%08x,DesiredAccess->0x%08x,SectionPageProtection->%d,FileHandle->0x%08x,ObjectHandle->0x%08x,SectionName->%wZ", statusCall, kSectionHandle, DesiredAccess, SectionPageProtection, FileHandle, kRootDirectory, &kObjectName)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -488,11 +491,9 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 							   __in BOOLEAN CreateSuspended)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
-	UNICODE_STRING ThreadName;
-	HANDLE kThreadHandle, kRootDirectory;
+	ULONG currentProcessId, newProcessId = 0;
+	HANDLE kThreadHandle = 0;
 	UNICODE_STRING kObjectName;
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 
@@ -510,18 +511,23 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 		
 		__try
 		{
-			ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
-			ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
-			ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
+			if(ThreadHandle)
+			{
+				ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
+				kThreadHandle = *ThreadHandle;
+			}
 			
-			kThreadHandle = *ThreadHandle;
+			if(ObjectAttributes != NULL)
+			{
+				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
+				ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
+				ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
+				kObjectName.Length = ObjectAttributes->ObjectName->Length;
+				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
+				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
+				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
+			}
 			newProcessId = getPIDByHandle(ProcessHandle);
-			kRootDirectory = ObjectAttributes->RootDirectory;
-			kObjectName.Length = ObjectAttributes->ObjectName->Length;
-			kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
-			kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
-			RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
@@ -534,30 +540,11 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 				PoolFree(parameter);
 			return statusCall;
 		}
-		if(kRootDirectory)	// handle the not null rootdirectory case
-		{
-			// allocate both name information struct and unicode string buffer
-			nameInformation = PoolAlloc(MAX_SIZE);
-			if(nameInformation)
-			{
-				if(NT_SUCCESS(ZwQueryObject(kRootDirectory, ObjectNameInformation, nameInformation, MAX_SIZE, NULL)))
-				{
-					ThreadName.MaximumLength = nameInformation->Name.Length + kObjectName.Length + 2 + sizeof(WCHAR);
-					ThreadName.Buffer = PoolAlloc(ThreadName.MaximumLength);
-					RtlZeroMemory(ThreadName.Buffer, ThreadName.MaximumLength);
-					RtlCopyUnicodeString(&ThreadName, &(nameInformation->Name));
-					RtlAppendUnicodeToString(&ThreadName, L"\\");
-					RtlAppendUnicodeStringToString(&ThreadName, &kObjectName);
-				}
-			}
-		}
-		else
-			RtlInitUnicodeString(&ThreadName, kObjectName.Buffer);
 		
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessHandle->0x%08x,CreateSuspended->%d,ThreadName->%wZ", kThreadHandle, DesiredAccess, ProcessHandle, CreateSuspended, &ThreadName)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessHandle->0x%08x,CreateSuspended->%d,ThreadName->%wZ", kThreadHandle, DesiredAccess, ProcessHandle, CreateSuspended, &kObjectName)))
 				log_lvl = LOG_PARAM;	
 			if(newProcessId)
 				StartMonitoringProcess(newProcessId);
@@ -565,7 +552,7 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessHandle->0x%08x,CreateSuspended->%d,ThreadName->%wZ", statusCall, kThreadHandle, DesiredAccess, ProcessHandle, CreateSuspended, &ThreadName)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessHandle->0x%08x,CreateSuspended->%d,ThreadName->%wZ", statusCall, kThreadHandle, DesiredAccess, ProcessHandle, CreateSuspended, &kObjectName)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -585,8 +572,6 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
-		if(nameInformation != NULL)
-			PoolFree(nameInformation);
 	}
 	return statusCall;	
 }
@@ -616,11 +601,9 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 								 __out PVOID lpBytesBuffer)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
-	UNICODE_STRING ThreadName;
-	HANDLE kThreadHandle, kRootDirectory;
+	ULONG currentProcessId, newProcessId = 0;
+	HANDLE kThreadHandle = 0;
 	UNICODE_STRING kObjectName;
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	kObjectName.Buffer = NULL;
@@ -639,18 +622,22 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 		
 		__try
 		{
-			ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
-			ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
-			ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
-			
-			kThreadHandle = *ThreadHandle;
+			if(ThreadHandle)
+			{
+				ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
+				kThreadHandle = *ThreadHandle;
+			}
+			if(ObjectAttributes != NULL)
+			{
+				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
+				ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
+				ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
+				kObjectName.Length = ObjectAttributes->ObjectName->Length;
+				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
+				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
+				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
+			}
 			newProcessId = getPIDByHandle(ProcessHandle);
-			kRootDirectory = ObjectAttributes->RootDirectory;
-			kObjectName.Length = ObjectAttributes->ObjectName->Length;
-			kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
-			kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
-			RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
@@ -663,30 +650,11 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 				PoolFree(parameter);
 			return statusCall;
 		}
-		if(kRootDirectory)	// handle the not null rootdirectory case
-		{
-			// allocate both name information struct and unicode string buffer
-			nameInformation = PoolAlloc(MAX_SIZE);
-			if(nameInformation)
-			{
-				if(NT_SUCCESS(ZwQueryObject(kRootDirectory, ObjectNameInformation, nameInformation, MAX_SIZE, NULL)))
-				{
-					ThreadName.MaximumLength = nameInformation->Name.Length + kObjectName.Length + 2 + sizeof(WCHAR);
-					ThreadName.Buffer = PoolAlloc(ThreadName.MaximumLength);
-					RtlZeroMemory(ThreadName.Buffer, ThreadName.MaximumLength);
-					RtlCopyUnicodeString(&ThreadName, &(nameInformation->Name));
-					RtlAppendUnicodeToString(&ThreadName, L"\\");
-					RtlAppendUnicodeStringToString(&ThreadName, &kObjectName);
-				}
-			}
-		}
-		else
-			RtlInitUnicodeString(&ThreadName, kObjectName.Buffer);
 		
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName->%wZ,ProcessHandle->0x%08x,FunctionAddress->0x%08x,Parameter->0x%08x,CreateSuspended->%d,StackZeroBits->%d", kThreadHandle, DesiredAccess, &ThreadName, ProcessHandle, lpStartAddress, lpParameter, CreateSuspended, StackZeroBits)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName->%wZ,ProcessHandle->0x%08x,FunctionAddress->0x%08x,Parameter->0x%08x,CreateSuspended->%d,StackZeroBits->%d", kThreadHandle, DesiredAccess, &kObjectName, ProcessHandle, lpStartAddress, lpParameter, CreateSuspended, StackZeroBits)))
 				log_lvl = LOG_PARAM;	
 			if(newProcessId)
 				StartMonitoringProcess(newProcessId);
@@ -694,7 +662,7 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName->%wZ,ProcessHandle->0x%08x,FunctionAddress->0x%08x,Parameter->0x%08x,CreateSuspended->%d,StackZeroBits->%d", statusCall, kThreadHandle, DesiredAccess, &ThreadName, ProcessHandle, lpStartAddress, lpParameter, CreateSuspended, StackZeroBits)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssssss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ThreadName->%wZ,ProcessHandle->0x%08x,FunctionAddress->0x%08x,Parameter->0x%08x,CreateSuspended->%d,StackZeroBits->%d", statusCall, kThreadHandle, DesiredAccess, &kObjectName, ProcessHandle, lpStartAddress, lpParameter, CreateSuspended, StackZeroBits)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -714,8 +682,6 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
-		if(nameInformation != NULL)
-			PoolFree(nameInformation);
 	}
 	return statusCall;		
 }
@@ -904,12 +870,16 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 		
 		__try
 		{
-			ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ClientId, sizeof(CLIENT_ID), 1);
-			
-			kProcessHandle = *ProcessHandle;
+			if(ProcessHandle)
+			{
+				ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
+				kProcessHandle = *ProcessHandle;
+			}
 			if(ClientId)
+			{
+				ProbeForRead(ClientId, sizeof(CLIENT_ID), 1);
 				targetProcessId = (ULONG)ClientId->UniqueProcess;
+			}
 			else
 				targetProcessId = getPIDByHandle(kProcessHandle);
 		}
@@ -929,11 +899,12 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 		{
 			if(IsProcessInList(targetProcessId, pHiddenProcessListHead))
 			{
-				ZwClose(kProcessHandle);
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,-1,sss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", kProcessHandle, DesiredAccess, targetProcessId)))
 					sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
 				else
 					sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
+				NtClose(*ProcessHandle);
+				return STATUS_INVALID_PARAMETER;
 			}
 			
 			log_lvl = LOG_SUCCESS;
@@ -990,13 +961,15 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 								   __in ULONG Win32Protect)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
+	ULONG currentProcessId, newProcessId = 0;
 	USHORT log_lvl = LOG_ERROR;
 	LARGE_INTEGER kSectionOffset;
 	ULONG kViewSize = 0;
+	ULONG ulBytesRead = 0;
 	PWCHAR buff = NULL;
 	PUCHAR buff2 = NULL;
 	PWCHAR parameter = NULL;
+	PVOID kBaseAddress = NULL;
 	kSectionOffset.QuadPart = 0;
 	
 	PAGED_CODE();
@@ -1011,14 +984,16 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 		
 		if(currentProcessId != newProcessId)
 		{
-			Dbg("Call NtMapViewOfSection()\n");
-			
+			Dbg("Call NtMapViewOfSection\n");
+
 			parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
 			
 			__try
 			{
 				if(SectionOffset)
 					kSectionOffset = ProbeForReadLargeInteger(SectionOffset);
+				if(BaseAddress)
+					kBaseAddress = *BaseAddress;
 				if(ViewSize)
 				{					
 					ProbeForRead(ViewSize, sizeof(SIZE_T), 1);
@@ -1037,6 +1012,7 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 				return statusCall;
 			}
 			
+			
 			// log buffer
 			buff = PoolAlloc(BUFFER_LOG_MAX);
 			buff2 = PoolAlloc(BUFFER_LOG_MAX);
@@ -1044,19 +1020,26 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 					
 			if(NT_SUCCESS(statusCall))
 			{
-				if(buff != NULL)
+				/*
+				if(buff && buff2)
 				{
-					Orig_NtReadVirtualMemory(ProcessHandle, *BaseAddress, buff2, kViewSize, &kViewSize);
-					CopyBuffer(buff, buff2, kViewSize);
-				}
+					if(kBaseAddress)
+					{
+						Orig_NtReadVirtualMemory(ProcessHandle, kBaseAddress, buff2, kViewSize, &ulBytesRead);
+						CopyBuffer(buff, buff2, ulBytesRead);
+					}
+				}*/
 				log_lvl = LOG_SUCCESS;
-				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssssss,SectionHandle->0x%08x,ProcessHandle->0x%08x,BaseAddress->0x%08x,CommitSize->%d,SectionOffset->%d,ViewSize->%d,AllocationType->%d,Win32Protect->%d,Buffer->%ws", SectionHandle, ProcessHandle, BaseAddress, buff)))
+				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssssss,SectionHandle->0x%08x,ProcessHandle->0x%08x,BaseAddress->0x%08x,CommitSize->%d,SectionOffset->%d,ViewSize->%d,AllocationType->%d,Win32Protect->%d,Buffer->%ws", SectionHandle, ProcessHandle, kBaseAddress, CommitSize, 0/*kSectionOffset.QuadPart*/, kViewSize, AllocationType, Win32Protect, buff)))
 					log_lvl = LOG_PARAM;
+				if(newProcessId)
+					StartMonitoringProcess(newProcessId);
 			}
 			else
+			
 			{
 				log_lvl = LOG_ERROR;
-				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssssssss,SectionHandle->0x%08x,ProcessHandle->0x%08x,BaseAddress->0x%08x,CommitSize->%d,SectionOffset->%d,ViewSize->%d,AllocationType->%d,Win32Protect->%d,Buffer->%ws", statusCall, SectionHandle, ProcessHandle, BaseAddress, buff)))
+				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssssssss,SectionHandle->0x%08x,ProcessHandle->0x%08x,BaseAddress->0x%08x,CommitSize->%d,SectionOffset->%d,ViewSize->%d,AllocationType->%d,Win32Protect->%d,Buffer->%ws", statusCall, SectionHandle, ProcessHandle, kBaseAddress, CommitSize, 0/*kSectionOffset.QuadPart*/, kViewSize, AllocationType, Win32Protect, buff)))
 					log_lvl = LOG_PARAM;
 			}
 				
@@ -1071,11 +1054,13 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 				default:
 					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"0,-1,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
 			}
+			if(buff != NULL)
+				PoolFree(buff);
+			if(buff2 != NULL)
+				PoolFree(buff2);
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
-		if(buff != NULL)
-			PoolFree(buff);
 	}
 	return statusCall;		
 }
@@ -1191,7 +1176,7 @@ NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId;
 	USHORT log_lvl = LOG_ERROR;
-	ULONG kBufferSize;
+	ULONG kBufferSize = 0;
 	PUCHAR kBuffer = NULL;
 	PWCHAR buff = NULL;
 	PWCHAR parameter = NULL;
@@ -1211,10 +1196,16 @@ NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 		
 		__try
 		{
-			ProbeForRead(NumberOfBytesWritten, sizeof(ULONG), 1);	
-			kBufferSize = *NumberOfBytesWritten;
-			ProbeForRead(Buffer, kBufferSize, 1);
-			kBuffer = Buffer;
+			if(NumberOfBytesWritten)
+			{
+				ProbeForRead(NumberOfBytesWritten, sizeof(ULONG), 1);	
+				kBufferSize = *NumberOfBytesWritten;
+			}
+			if(Buffer != NULL)
+			{
+				ProbeForRead(Buffer, kBufferSize, 1);
+				kBuffer = Buffer;
+			}
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
@@ -1289,9 +1280,9 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 									__in_opt PVOID AttributeList)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
+	ULONG currentProcessId, newProcessId = 0;
 	UNICODE_STRING process_name, thread_name;
-	HANDLE kProcessHandle, kThreadHandle;
+	HANDLE kProcessHandle = 0, kThreadHandle = 0;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	
@@ -1309,14 +1300,18 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		
 		__try
 		{
-			ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
-			
-			ProbeForRead(ProcessParameters, sizeof(RTL_USER_PROCESS_PARAMETERS), 1);
-					
-			kProcessHandle = *ProcessHandle;
-			kThreadHandle = *ThreadHandle;
-			
+			if(ProcessHandle)
+			{
+				ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
+				kProcessHandle = *ProcessHandle;
+			}
+			if(ThreadHandle)
+			{
+				ProbeForRead(ThreadHandle, sizeof(HANDLE), 1);
+				kThreadHandle = *ThreadHandle;
+			}
+			if(ProcessParameters)
+				ProbeForRead(ProcessParameters, sizeof(RTL_USER_PROCESS_PARAMETERS), 1);
 			newProcessId = getPIDByHandle(kProcessHandle);
 		}
 		__except(EXCEPTION_EXECUTE_HANDLER)
@@ -1388,15 +1383,12 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 								  __in BOOLEAN InJob)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
-	UNICODE_STRING full_path;
-	HANDLE kRootDirectory, kProcessHandle;
+	ULONG currentProcessId, newProcessId = 0;
+	HANDLE kProcessHandle = 0;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
 	
-	full_path.Buffer = NULL;
 	kObjectName.Buffer = NULL;
 	
 	PAGED_CODE();
@@ -1412,16 +1404,18 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 		
 		__try
 		{
-			ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
-			kProcessHandle = *ProcessHandle;
-			newProcessId = getPIDByHandle(kProcessHandle);
-			
+			if(ProcessHandle)
+			{
+				ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
+				kProcessHandle = *ProcessHandle;
+				newProcessId = getPIDByHandle(kProcessHandle);
+			}
+
 			if(ObjectAttributes != NULL)
 			{
 				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
 				ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
 				ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
-				kRootDirectory = ObjectAttributes->RootDirectory;
 				kObjectName.Length = ObjectAttributes->ObjectName->Length;
 				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
@@ -1439,31 +1433,11 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 				PoolFree(parameter);
 			return statusCall;
 		}
-		
-		if(kRootDirectory)	// handle the not null rootdirectory case
-		{
-			// allocate both name information struct and unicode string buffer
-			nameInformation = PoolAlloc(MAX_SIZE);
-			if(nameInformation)
-			{
-				if(NT_SUCCESS(ZwQueryObject(kRootDirectory, ObjectNameInformation, nameInformation, MAX_SIZE, NULL)))
-				{
-					full_path.MaximumLength = nameInformation->Name.Length + kObjectName.Length + 2 + sizeof(WCHAR);
-					full_path.Buffer = PoolAlloc(full_path.MaximumLength);
-					RtlZeroMemory(full_path.Buffer, full_path.MaximumLength);
-					RtlCopyUnicodeString(&full_path, &(nameInformation->Name));
-					RtlAppendUnicodeToString(&full_path, L"\\");
-					RtlAppendUnicodeStringToString(&full_path, &kObjectName);
-				}
-			}
-		}
-		else
-			RtlInitUnicodeString(&full_path, kObjectName.Buffer);
-		
+				
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,Flags->%d,FilePath->%wZ", kProcessHandle, DesiredAccess, Flags, &full_path)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,Flags->%d,FilePath->%wZ", kProcessHandle, DesiredAccess, Flags, &kObjectName)))
 					log_lvl = LOG_PARAM;
 			if(newProcessId)
 				StartMonitoringProcess(newProcessId);
@@ -1471,7 +1445,7 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,Flags->%d,FilePath->%wZ", statusCall, kProcessHandle, DesiredAccess, Flags, &full_path)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,Flags->%d,FilePath->%wZ", statusCall, kProcessHandle, DesiredAccess, Flags, &kObjectName)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -1491,8 +1465,6 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
-		if(nameInformation != NULL)
-			PoolFree(nameInformation);
 	}
 	return statusCall;	
 }
@@ -1518,15 +1490,12 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 								__in_opt HANDLE ExceptionPort)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, newProcessId;
-	UNICODE_STRING full_path;
-	HANDLE kRootDirectory, kProcessHandle;
+	ULONG currentProcessId, newProcessId = 0;
+	HANDLE kProcessHandle = 0;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
 	
-	full_path.Buffer = NULL;
 	kObjectName.Buffer = NULL;
 	
 	PAGED_CODE();
@@ -1537,22 +1506,21 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
 		Dbg("call NtCreateProcess\n");
-	
 		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
 		
 		__try
 		{
-			ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
-			kProcessHandle = *ProcessHandle;
-			newProcessId = getPIDByHandle(kProcessHandle);
-			
+			if(ProcessHandle)
+			{
+				ProbeForRead(ProcessHandle, sizeof(HANDLE), 1);
+				kProcessHandle = *ProcessHandle;
+				newProcessId = getPIDByHandle(kProcessHandle);
+			}
 			if(ObjectAttributes != NULL)
 			{
 				ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
 				ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
 				ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
-				
-				kRootDirectory = ObjectAttributes->RootDirectory;
 				kObjectName.Length = ObjectAttributes->ObjectName->Length;
 				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
@@ -1571,30 +1539,11 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 			return statusCall;
 		}
 		
-		if(kRootDirectory)	// handle the not null rootdirectory case
-		{
-			// allocate both name information struct and unicode string buffer
-			nameInformation = PoolAlloc(MAX_SIZE);
-			if(nameInformation)
-			{
-				if(NT_SUCCESS(ZwQueryObject(kRootDirectory, ObjectNameInformation, nameInformation, MAX_SIZE, NULL)))
-				{
-					full_path.MaximumLength = nameInformation->Name.Length + kObjectName.Length + 2 + sizeof(WCHAR);
-					full_path.Buffer = PoolAlloc(full_path.MaximumLength);
-					RtlZeroMemory(full_path.Buffer, full_path.MaximumLength);
-					RtlCopyUnicodeString(&full_path, &(nameInformation->Name));
-					RtlAppendUnicodeToString(&full_path, L"\\");
-					RtlAppendUnicodeStringToString(&full_path, &kObjectName);
-				}
-			}
-		}
-		else
-			RtlInitUnicodeString(&full_path, kObjectName.Buffer);
 		
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,InheritObjectTable->%d,FilePath->%wZ", kProcessHandle, DesiredAccess, InheritObjectTable, &full_path)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,InheritObjectTable->%d,FilePath->%wZ", kProcessHandle, DesiredAccess, InheritObjectTable, &kObjectName)))
 					log_lvl = LOG_PARAM;
 			if(newProcessId)
 				StartMonitoringProcess(newProcessId);
@@ -1602,7 +1551,7 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,InheritObjectTable->%d,FilePath->%wZ", statusCall, kProcessHandle, DesiredAccess, InheritObjectTable, &full_path)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,InheritObjectTable->%d,FilePath->%wZ", statusCall, kProcessHandle, DesiredAccess, InheritObjectTable, &kObjectName)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -1622,8 +1571,6 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
-		if(nameInformation != NULL)
-			PoolFree(nameInformation);
 	}
 	return statusCall;	
 }

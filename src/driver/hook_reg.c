@@ -5,6 +5,93 @@
 #include "main.h"
 #include "comm.h"
 
+NTSTATUS Hooked_NtSetValueKey(__in HANDLE KeyHandle,
+							  __in PUNICODE_STRING ValueName,
+							  __in_opt ULONG TitleIndex,
+							  __in ULONG Type,
+							  __in_opt PVOID Data,
+							  __in ULONG DataSize)
+{
+	NTSTATUS statusCall, exceptionCode;
+	ULONG currentProcessId;
+	UNICODE_STRING kValueName;
+	PUCHAR kBuffer = NULL;
+	PWCHAR buff = NULL;
+	USHORT log_lvl = LOG_ERROR;
+	PWCHAR parameter = NULL;
+	
+	PAGED_CODE();
+	
+	currentProcessId = (ULONG)PsGetCurrentProcessId();
+		
+	statusCall = Orig_NtSetValueKey(KeyHandle, ValueName, TitleIndex, Type, Data, DataSize);
+		
+	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+	{
+		Dbg("call NtSetValueKey\n");
+		
+		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+		kValueName.Buffer = NULL;
+		
+		__try
+		{
+			ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
+			ProbeForRead(Data, DataSize, 1);
+			kBuffer = Data;
+			kValueName.Length = ValueName->Length;
+			kValueName.MaximumLength = ValueName->MaximumLength;
+			kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
+			RtlCopyUnicodeString(&kValueName, ValueName);
+		}
+		__except (EXCEPTION_EXECUTE_HANDLER)
+		{
+			exceptionCode = GetExceptionCode();
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR", exceptionCode)))
+				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
+			else 
+				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+			if(parameter != NULL)
+				PoolFree(parameter);
+			return statusCall;
+		}
+
+		// logs data
+		buff = PoolAlloc(BUFFER_LOG_MAX);
+		CopyBuffer(buff, kBuffer, DataSize);
+			
+		if(NT_SUCCESS(statusCall))
+		{
+			log_lvl = LOG_SUCCESS;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssss,KeyHandle->0x%08x,TitleIndex->%d,Type->%d,Type->%d,Data->%ws,ValueName->%wZ", KeyHandle, TitleIndex, Type, Type, buff, &kValueName)))
+				log_lvl = LOG_PARAM;
+		}
+		else
+		{
+			log_lvl = LOG_ERROR;
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssssss,KeyHandle->0x%08x,TitleIndex->%d,Type->%d,Type->%d,Data->%ws,ValueName->%wZ", statusCall, KeyHandle, TitleIndex, Type, Type, buff, &kValueName)))
+				log_lvl = LOG_PARAM;
+		}
+		
+		switch(log_lvl)
+		{
+			case LOG_PARAM:
+				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
+			break;
+			case LOG_SUCCESS:
+				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"1,0,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+			break;
+			default:
+				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+			break;
+		}
+		
+		if(parameter != NULL)
+			PoolFree(parameter);
+	}
+	return statusCall;		
+}
+
+
 NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
 								 __in PUNICODE_STRING ValueName)
 {
@@ -365,7 +452,6 @@ NTSTATUS Hooked_NtCreateKey(__out PHANDLE KeyHandle,
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
-			Dbg("FUUUUU !\n")
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR", exceptionCode)))
 				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, parameter);
