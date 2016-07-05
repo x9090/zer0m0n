@@ -1,12 +1,19 @@
-zer0m0n v0.9
+zer0m0n v1.0
 ============
 
 zer0m0n is a driver for Cuckoo Sandbox, it will perform kernel analysis during the execution of a malware. There are many ways for a malware author to bypass Cuckoo detection, he can detect the hooks, hardcodes the Nt* functions to avoid the hooks, detect the virtual machine... The goal of this driver is to offer the possibility for the user to choose between the classical userland analysis or a kernel analysis, which will be harder to detect or bypass.
 
-Actually, it works for XP 32 bit and 7 32 bit/64 bit Windows machines.
+It works for XP 32 bit and 7 32 bit/64 bit Windows machines.
+This last version should work on every Windows versions.
 
 CHANGELOG
 =========
+
+v1.0
++ cuckoo 2.0 compatibility
++ syscalls dynamically retrieved 
++ code refactoring
++ several minor changes
 
 v0.9
 + cuckoo 1.2 compatibility
@@ -89,8 +96,10 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
   
     - run "patch -p1 < ./cuckoo.patch"
   
-    - copy the "logs_dispatcher.exe" and "zer0m0n.sys" files into your /cuckoo/analyzer/windows/dll/ folder
-   
+    - copy "logs_dispatcher.exe", "zer0m0n-x86.sys" and "zer0m0n-x64.sys" files into your "/cuckoo/analyzer/windows/bin/" folder
+    
+    - copy "inject-x86.exe" and inject-x64.exe" into your "/cuckoo/data/monitor/latest/" folder   
+ 
  2- Open your virtual machine, it MUST run a "Windows XP x86" or a "Windows 7 x86" OS
 
  3- Disable UAC (http://windows.microsoft.com/en-us/windows/turn-user-account-control-on-off#1TC=windows-7)  and restart the virtual machine
@@ -99,7 +108,7 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
 
  5- Snapshot the VM
 
-While submitting a new analysis, choose "kernelland" option on the Web interface, or use the option "kernel_analysis=yes" on commandline.
+While submitting a new analysis, choose "zer0m0n" option on the Web interface.
 
 
 INSTALL/USE (x64 version)
@@ -112,8 +121,10 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
     - copy "cuckoo.patch" to your cuckoo root directory
     
     - run "patch -p1 < ./cuckoo.patch"
+   
+    - copy "logs_dispatcher.exe", "zer0m0n-x86.sys" and "zer0m0n-x64.sys" files into your "/cuckoo/analyzer/windows/bin/" folder
     
-    - copy the "logs_dispatcher.exe" and "zer0m0n_x64.sys" files into your /cuckoo/analyzer/windows/dll/ folder
+    - copy "inject-x86.exe" and inject-x64.exe" into your "/cuckoo/data/monitor/latest/" folder   
 
  2- Open your virtual machine, it MUST run a "Windows 7 x64" OS
 
@@ -129,17 +140,6 @@ To patch cuckoo, you will need the files in the "bin" directory to patch cuckoo 
 
 While submitting a new analysis, choose "kernelland" option on the Web interface, or use the option "kernel_analysis=yes" on commandline. 
 
-
-SIGNATURES
-==========
-
-Signatures patterns have changed:
-
-- for registry operations, handles are not logged anymore (use of callbacks instead of hooks). The full path of accessed keys is now logged and may be used directly, including on values operations
-- for windows operations, there is no logging anymore
-- for IOCTLs operations (including Winsock operations), ZwDeviceIoControlFile hook will be implemented soon (only userland calls) :]
-- several other functions are not actually hooked and will be added later
-- signatures based on "global" results (registry / files / mutexes / networking / ...) still work fine
 
 COMPILATION
 ===========
@@ -167,10 +167,6 @@ A: For now, several processes are hidden/blocked, by pid filtering:
 
 The zer0m0n driver is not hidden (its name is randomized), the service cannot be unloaded using ZwUnloadDriver (MiniFIlter driver spec).
 
-Q: How do you handle the case where a malware will load a driver (and then be at the same level of your driver) and would possibly subvert the analysis ?
-
-A: Well, this is in the to-do list :D. we can log when a new driver is loaded during the malware execution through PsSetLoadImageNotifyRoutine(), we planned to stop the analysis when we detect this behavior.
-
 Q: How do you handle cukoo bypassing / VM detection techniques ?
 
 A : There are really MANY ways to detect cuckoo or a virtual machine... Our thought is to handle known (and used into the wild) techniques, and to build post-analysis signatures to detect generic detection techniques and warn the user about possible detection/bypass. There must be also some ways to bypass zer0m0n and we'd want to block them all (we believe we can detect we're detected). Please try to bypass zer0m0n, this could be a really interresting cat&mouse game :]
@@ -185,3 +181,4 @@ Authors
 =======
 - Nicolas Correia
 - Adrien Chevalier
+- Cyril Moreau
