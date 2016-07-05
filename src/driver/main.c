@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////
 //
-//	zer0m0n DRIVER
+//	zer0m0n 
 //
-//  Copyright 2014 Nicolas Correia, Adrien Chevalier
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
 //
 //  This file is part of zer0m0n.
 //
@@ -21,42 +21,24 @@
 //
 //
 //	File :		main.c
-//	Abstract :	Main function for zer0m0n Driver
+//	Abstract :	Main function for zer0m0n 
 //	Revision : 	v1.1
-//	Author :	Adrien Chevalier & Nicolas Correia
-//	Email :		// à mettre...
-//	Date :		2014-10-01	  
-//	Notes : 	
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
 //
 /////////////////////////////////////////////////////////////////////////////
 
 #include "main.h"
+#include "struct.h"
 #include "utils.h"
 #include "monitor.h"
 #include "hooking.h"
 #include "comm.h"
+#include "hook_misc.h"
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : initializes the driver, communication and hooks.
-//
-//	Parameters : 
-//		__in PDRIVER_OBJECT pDriverObject :	    Data structure used to represent the driver.
-//		__in PUNICODE_STRING pRegistryPath :	Registry location where the information for the driver
-//												was stored.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if the driver initialization has been well completed
-//	Process :
-//		Import needed functions
-//		Creates the device driver and its symbolic link.
-//		Sets IRP callbacks.
-//		Creates filter communication port to send logs from the driver to the userland process.
-//		Hooks SSDT and Shadow SSDT
-//		Creates logs mutex.
-//		Register image load.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
-		__in PUNICODE_STRING pRegistryPath)
+					__in PUNICODE_STRING pRegistryPath)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	UNICODE_STRING usDriverName;
@@ -93,30 +75,20 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	if(!NT_SUCCESS(status))
 		return status;
 
-
 	KeInitializeMutex(&mutex, 0);
 	HookSSDT();
 
-	//HookShadowSSDT();
+	status = PsSetLoadImageNotifyRoutine(imageCallback);
+	if(!NT_SUCCESS(status))
+		return status;
 
 	pDriverObject->DriverUnload = Unload;
 	return status;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Driver unload callback. Removes hooks, callbacks, and communication stuff.
-//
-//	Parameters :
-//		__in PDRIVER_OBJECT pDriverObject :	Data structure used to represent the driver.
-//	Process :
-//		Removes hooks, callbacks, device driver symbolic link / device. 
-//		Cleans the monitored processes linked list.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID Unload(__in PDRIVER_OBJECT pDriverObject) 
 {
-	//RestoreSSDT();
-
+	PsRemoveLoadImageNotifyRoutine(imageCallback);
 	FreeList();
 	IoDeleteSymbolicLink(&usDosDeviceName);
 	IoDeleteDevice(pDriverObject->DeviceObject);

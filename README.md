@@ -2,14 +2,8 @@ zer0m0n v1.0 (DEVELOPMENT BRANCH)
 =================================
 
 To-do :
-+ code cleaning
 + moar hooks
-+ antiVM/Cuckoo detection features
-+ fix a synchronization problem between cuckoo and zer0m0n when a new process is being monitored 
-+ sanitize buffer before logging
-+ fix NtDeviceIoControl outputBuffer log
-+ fix NtQueryValueKey regkey log
-+ moar code refactoring
++ moar antiVM/Cuckoo detection features
 
 v1.0 changes :
 + works with cuckoo 2.0

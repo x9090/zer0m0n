@@ -1,3 +1,35 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//	zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//	File :		hook_reg.c
+//	Abstract :	Hook reg function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
+//
+/////////////////////////////////////////////////////////////////////////////
+
+#include "struct.h"
 #include "hooking.h"
 #include "hook_reg.h"
 #include "monitor.h"
@@ -35,21 +67,26 @@ NTSTATUS Hooked_NtSetValueKey(__in HANDLE KeyHandle,
 		
 		__try
 		{
-			ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
+			if(ValueName)
+			{
+				ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
+				kValueName.Length = ValueName->Length;
+				kValueName.MaximumLength = ValueName->MaximumLength;
+				kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
+				RtlCopyUnicodeString(&kValueName, ValueName);
+			}
+			else
+				RtlInitUnicodeString(&kValueName, L"");
 			ProbeForRead(Data, DataSize, 1);
 			kBuffer = Data;
-			kValueName.Length = ValueName->Length;
-			kValueName.MaximumLength = ValueName->MaximumLength;
-			kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
-			RtlCopyUnicodeString(&kValueName, ValueName);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -75,13 +112,13 @@ NTSTATUS Hooked_NtSetValueKey(__in HANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"1,0,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"1,0,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtSetValueKey, L"0,-1,ssssss,KeyHandle->0,TitleIndex->0,Type->0,Type->0,Data->ERROR,ValueName->ERROR");
 			break;
 		}
 		
@@ -90,7 +127,6 @@ NTSTATUS Hooked_NtSetValueKey(__in HANDLE KeyHandle,
 	}
 	return statusCall;		
 }
-
 
 NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
 								 __in PUNICODE_STRING ValueName)
@@ -116,20 +152,24 @@ NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
 		
 		__try
 		{
-			ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
-			
-			kValueName.Length = ValueName->Length;
-			kValueName.MaximumLength = ValueName->MaximumLength;
-			kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
-			RtlCopyUnicodeString(&kValueName, ValueName);
+			if(ValueName)
+			{
+				ProbeForRead(ValueName, sizeof(UNICODE_STRING), 1);
+				kValueName.Length = ValueName->Length;
+				kValueName.MaximumLength = ValueName->MaximumLength;
+				kValueName.Buffer = PoolAlloc(ValueName->MaximumLength);
+				RtlCopyUnicodeString(&kValueName, ValueName);
+			}
+			else
+				RtlInitUnicodeString(&kValueName, L"");
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ss,KeyHandle->0,ValueName->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -151,13 +191,13 @@ NTSTATUS Hooked_NtDeleteValueKey(__in HANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"1,0,ss,KeyHandle->0,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"1,0,ss,KeyHandle->0,ValueName->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteValueKey, L"0,-1,ss,KeyHandle->0,ValueName->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -207,13 +247,13 @@ NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"1,0,ss,KeyHandle->0,RegKey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"1,0,ss,KeyHandle->0,RegKey->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"0,-1,ss,KeyHandle->0,RegKey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtDeleteKey, L"0,-1,ss,KeyHandle->0,RegKey->ERROR");
 			break;
 		}
 		
@@ -268,9 +308,9 @@ NTSTATUS Hooked_NtOpenKeyEx(__out PHANDLE KeyHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,regkey->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"0,-1,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,regkey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"0,-1,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,regkey->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -292,13 +332,13 @@ NTSTATUS Hooked_NtOpenKeyEx(__out PHANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"1,0,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,ObjectAttributes->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"1,0,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,ObjectAttributes->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"0,-1,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,ObjectAttributes->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKeyEx, L"0,-1,ssss,KeyHandle->0,DesiredAccess->0,OpenOptions->0,ObjectAttributes->ERROR");
 			break;
 		}
 		
@@ -350,9 +390,9 @@ NTSTATUS Hooked_NtOpenKey(__out PHANDLE KeyHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKey, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"0,-1,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"0,-1,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -374,13 +414,13 @@ NTSTATUS Hooked_NtOpenKey(__out PHANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"1,0,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"1,0,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"0,-1,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenKey, L"0,-1,sss,KeyHandle->0,DesiredAccess->0,regkey->ERROR");
 			break;
 		}
 		
@@ -454,9 +494,9 @@ NTSTATUS Hooked_NtCreateKey(__out PHANDLE KeyHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateKey, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"0,-1,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"0,-1,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -478,13 +518,13 @@ NTSTATUS Hooked_NtCreateKey(__out PHANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"1,0,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"1,0,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"0,-1,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateKey, L"0,-1,sssssss,KeyHandle->0,DesiredAccess->0,TitleIndex->0,CreateOptions->0,Disposition->0,regkey->ERROR,class->ERROR");
 			break;
 		}
 		
@@ -494,19 +534,7 @@ NTSTATUS Hooked_NtCreateKey(__out PHANDLE KeyHandle,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//  	Hide VBOX keys.
-//  Parameters :
-//  	See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567069%28v=vs.85%29.aspx
-//  Return value :
-//  	See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567069%28v=vs.85%29.aspx
-//	Process :
-//		if a malware tries to identify VirtualBox by querying the key "Identifier", "SystemBiosVersion" 
-//		or "VideoBiosVersion")
-//		for "HKLM\HARDWARE\\DEVICEMAP\\Scsi\\Scsi Port 0\\Scsi Bus 0\\Target Id 0\\Logical Unit Id 0"
-// 		and "HKLM\\HARDWARE\\Description\\System", we return fake informations
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle, 
 								 __in PUNICODE_STRING ValueName,
 								 __in KEY_VALUE_INFORMATION_CLASS KeyValueInformationClass,
@@ -548,9 +576,9 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, parameter);
 			else 
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -580,13 +608,13 @@ NTSTATUS Hooked_NtQueryValueKey( __in HANDLE KeyHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"1,0,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"1,0,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtQueryValueKey, L"0,-1,sssss,KeyHandle->0,KeyValueInformationClass->0,RegKey->ERROR,ValueName->ERROR,RegType->0");
 			break;
 		}
 		

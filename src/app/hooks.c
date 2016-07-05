@@ -3999,7 +3999,6 @@ static const char *g_explain_paramnames[][16] = {
     // NtDelayExecution
     {
         "milliseconds",
-        "skipped",
     },
     // NtDeleteFile
     {
@@ -5231,7 +5230,7 @@ static const char *g_explain_paramtypes[] = {
     // NtCreateUserProcess
     "ssssssss",
     // NtDelayExecution
-    "qi",
+    "s",
     // NtDeleteFile
     "s",
     // NtDeleteKey
@@ -5251,7 +5250,7 @@ static const char *g_explain_paramtypes[] = {
     // NtGetContextThread
     "p",
     // NtLoadDriver
-    "u",
+    "s",
     // NtLoadKey
     "uu",
     // NtLoadKey2

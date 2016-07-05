@@ -1,3 +1,34 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//  zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//  File :      monitor.h
+//  Abstract :  Monitor header for zer0m0n
+//  Revision :  v1.1
+//  Author :    Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//  Email :     contact.zer0m0n@gmail.com
+//  Date :      2016-07-05      
+//
+/////////////////////////////////////////////////////////////////////////////
+
 #ifndef __MONITOR_H
 #define __MONITOR_H
 
@@ -6,6 +37,7 @@
 /////////////////////////////////////////////////////////////////////////////
 // STRUCTS
 /////////////////////////////////////////////////////////////////////////////
+
 
 // processes linked list
 typedef struct _PROCESS_ENTRY
@@ -26,6 +58,7 @@ typedef struct _HANDLE_ENTRY
 // GLOBALS
 /////////////////////////////////////////////////////////////////////////////
 
+
 // monitored processes list
 PLIST_ENTRY pMonitoredProcessListHead;
 
@@ -40,6 +73,7 @@ PLIST_ENTRY pHandleListHead;
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Description :
 //      Initialize the linked lists
@@ -48,7 +82,7 @@ PLIST_ENTRY pHandleListHead;
 //  Return value :
 //      NTSTATUS : STATUS_SUCCESS if no error occured, otherwise returns the relevant NTSTATUS code
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS Init_LinkedLists(VOID);
+NTSTATUS Init_LinkedLists();
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //  Description :
@@ -77,6 +111,8 @@ PHANDLE_ENTRY AllocateHandleEntry(__in HANDLE new_handle);
 //      __in ULONG new_pid : pid to add to the list
 //  Return value :
 //      NTSTATUS : STATUS_SUCCESS if no error occured, otherwise returns the relevant NTSTATUS code
+//  Process :
+//      Add the pid in the list if he's not already inside.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS StartMonitoringProcess(__in ULONG new_pid);
 
@@ -87,6 +123,8 @@ NTSTATUS StartMonitoringProcess(__in ULONG new_pid);
 //      __in ULONG new_pid : pid to add to the list
 //  Return value :
 //      NTSTATUS : STATUS_SUCCESS if no error occured, otherwise returns the relevant NTSTATUS code
+//  Process :
+//      Add the pid in the list if he's not already inside.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS AddProcessToHideToList(__in ULONG new_pid);
 
@@ -97,6 +135,8 @@ NTSTATUS AddProcessToHideToList(__in ULONG new_pid);
 //      __in ULONG new_handle : new_handle to add in the list
 //  Return value :
 //      NTSTATUS : STATUS_SUCCESS if no error occured, otherwise returns the relevant NTSTATUS code
+//  Process :
+//      Add the handle in the list if he's not already inside.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS AddHandleToList(__in HANDLE new_handle);
 
@@ -107,6 +147,8 @@ NTSTATUS AddHandleToList(__in HANDLE new_handle);
 //      __in ULONG handle : handle to remove from the monitored handle list 
 //  Return value :
 //      NTSTATUS : STATUS_SUCCESS if no error occured, otherwise, relevant NTSTATUS code
+//  Process :
+//      Remove handle from the list if he's inside.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS RemoveHandleFromList(__in HANDLE handle);
 
@@ -132,6 +174,8 @@ BOOLEAN IsProcessInList(__in ULONG pid,
 //      __in PLIST_ENTRY pListHead : linked list to check in
 //  Return value :
 //      BOOLEAN : TRUE if found, FALSE if not 
+//  Process :
+//      Walks through the linked list, returns TRUE if the handle is found 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 BOOLEAN IsHandleInList(__in HANDLE handle);
 
@@ -142,17 +186,9 @@ BOOLEAN IsHandleInList(__in HANDLE handle);
 //      None
 //  Return value :
 //      None
+//  Process :
+//      Walks through the linked lists and removes each entries.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID FreeList(VOID);
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//      Displays each entries from the linked listed 
-//  Parameters :
-//      None
-//  Return value :
-//      None
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID Dbg_WalkList(VOID);
+VOID FreeList();
 
 #endif

@@ -1,3 +1,35 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//	zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//	File :		hook_process.c
+//	Abstract :	Hook process function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
+//
+/////////////////////////////////////////////////////////////////////////////
+
+#include "struct.h"
 #include "hooking.h"
 #include "hook_process.h"
 #include "monitor.h"
@@ -5,16 +37,6 @@
 #include "main.h"
 #include "comm.h"
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process debugging (may be used for code injection).
-//	Parameters :
-//		See http://www.openrce.org/articles/full_view/26
-//	Return value :
-//		See http://www.openrce.org/articles/full_view/26
-//	Process :
-//		Adds the process to the monitored processes list and logs the ProcessHandle and DebugHandle parameters
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtDebugActiveProcess(__in HANDLE ProcessHandle,
 									 __in HANDLE DebugHandle)
 {
@@ -54,13 +76,13 @@ NTSTATUS Hooked_NtDebugActiveProcess(__in HANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, L"0,-1,ss,ProcessHandle->0,DebugHandle->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, L"0,-1,ss,ProcessHandle->0,DebugHandle->0");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, L"1,0,ss,ProcessHandle->0,DebugHandle->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtDebugActiveProcess, L"1,0,ss,ProcessHandle->0,DebugHandle->0");
 			break;
 		}
 
@@ -70,19 +92,6 @@ NTSTATUS Hooked_NtDebugActiveProcess(__in HANDLE ProcessHandle,
 	return statusCall;	
 }									 
 									
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Hides specific processes.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/desktop/ms725506(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/desktop/ms725506(v=vs.85).aspx
-//	Process :
-//		Checks the information type. If SystemProcessInformation (enumerate running processes), the
-//		hidden targetProcessIds are unlinked from the result (SYSTEM_PROCESS_INFORMATION linked list).
-//	Todo :
-//		- Hide also thread listing
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtQuerySystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInformationClass,
 										 __inout PVOID SystemInformation,
 										 __in ULONG SystemInformationLength,
@@ -124,16 +133,6 @@ NTSTATUS Hooked_NtQuerySystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInf
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs thread opening and hides threads which belong to the processes to hide
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/bb432382(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/bb432382(v=vs.85).aspx
-//	Process :
-//		Proceed the call then logs.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 							 __in ACCESS_MASK DesiredAccess,
 							 __in POBJECT_ATTRIBUTES ObjectAttributes,
@@ -175,9 +174,9 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -190,9 +189,9 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 			if(IsProcessInList(targetProcessId, pHiddenProcessListHead))
 			{
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,3221225485,sss,ThreadHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", kThreadHandle, DesiredAccess, kClientId))) 
-					sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
+					SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
 				else
-					sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,3221225485,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
+					SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,3221225485,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
 				if(parameter)
 					PoolFree(parameter);
 				*ThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
@@ -213,15 +212,15 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"0,-1,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"1,0,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenThread, L"1,0,sss,ThreadHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -230,17 +229,6 @@ NTSTATUS Hooked_NtOpenThread(__out PHANDLE ThreadHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs thread-based Asynchronous Procedure Call creation (may be used for code injection).
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/APC/NtQueueApcThread.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/APC/NtQueueApcThread.html
-//	Process :
-//		Proceed the call then gets the thread owner and adds it to the monitored processes list, then
-//		log.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtQueueApcThread(__in HANDLE ThreadHandle, 
 								 __in PIO_APC_ROUTINE ApcRoutine, 
 								 __in PVOID ApcRoutineContext, 
@@ -285,13 +273,13 @@ NTSTATUS Hooked_NtQueueApcThread(__in HANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, parameter);
 			break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, L"0,-1,ssss,ThreadHandle->0,FunctionAddress->0,Parameter->0,PID->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, L"0,-1,ssss,ThreadHandle->0,FunctionAddress->0,Parameter->0,PID->0");
 			break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, L"1,0,ssss,ThreadHandle->0,FunctionAddress->0,Parameter->0,PID->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtQueueApcThread, L"1,0,ssss,ThreadHandle->0,FunctionAddress->0,Parameter->0,PID->0");
 			break;
 		}
 
@@ -301,16 +289,6 @@ NTSTATUS Hooked_NtQueueApcThread(__in HANDLE ThreadHandle,
 	return statusCall;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs section object creation.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff566428%28v=vs.85%29.aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff566428%28v=vs.85%29.aspx
-//	Process :
-//		logs SectionHandle, DesiredAccess, SectionPageProtection, FileHandle, ObjectHandle and SectionName
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 								__in ACCESS_MASK DesiredAccess,
 								__in_opt POBJECT_ATTRIBUTES ObjectAttributes,
@@ -324,7 +302,7 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	HANDLE kSectionHandle = (HANDLE)INVALID_HANDLE_VALUE;
-	HANDLE kRootDirectory;
+	HANDLE kRootDirectory = (HANDLE)INVALID_HANDLE_VALUE;
 	PWCHAR parameter = NULL;
 	
 	PAGED_CODE();
@@ -356,14 +334,16 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
+			else
+				RtlInitUnicodeString(&kObjectName, L"");
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateSection, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"0,-1,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"0,-1,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -385,15 +365,15 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateSection, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"0,-1,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"0,-1,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"1,0,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateSection, L"1,0,ssssss,SectionHandle->0,DesiredAccess->0,SectionPageProtection->0,FileHandle->0,ObjectHandle->0,SectionName->NULL");
 			break;
 		}
 	
@@ -403,16 +383,6 @@ NTSTATUS Hooked_NtCreateSection(__out PHANDLE SectionHandle,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process debugging operations (may be used for code injection).
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Debug/NtSystemDebugControl.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Debug/NtSystemDebugControl.html
-//	Process :
-//		Pass the call and logs.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtSystemDebugControl(__in SYSDBG_COMMAND Command,
 									 __in_opt PVOID InputBuffer,
 									 __in ULONG InputBufferLength,
@@ -453,15 +423,15 @@ NTSTATUS Hooked_NtSystemDebugControl(__in SYSDBG_COMMAND Command,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, L"0,-1,s,Command->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, L"0,-1,s,Command->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, L"1,0,s,Command->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtSystemDebugControl, L"1,0,s,Command->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -470,17 +440,6 @@ NTSTATUS Hooked_NtSystemDebugControl(__in SYSDBG_COMMAND Command,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs thread creation.
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/NtCreateThread.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/NtCreateThread.html
-//	Process :
-//		Gets the thread's owner, proceeds the call then adds immediately the targetProcessId to the monitored
-//		processes list if it succeeded. Then logs.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 							   __in ACCESS_MASK DesiredAccess,
 							   __in POBJECT_ATTRIBUTES ObjectAttributes,
@@ -492,7 +451,7 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 {
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
-	HANDLE kThreadHandle = 0;
+	HANDLE kThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
@@ -527,15 +486,17 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
+			else
+				RtlInitUnicodeString(&kObjectName, L"");
 			newProcessId = getPIDByHandle(ProcessHandle);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->NULL", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThread, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"0,-1,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->NULL");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"0,-1,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->NULL");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -559,15 +520,15 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThread, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"0,-1,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"0,-1,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"1,0,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThread, L"1,0,sssss,ThreadHandle->0,DesiredAccess->0,ProcessHandle->0,CreateSuspended->0,ThreadName->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -576,18 +537,6 @@ NTSTATUS Hooked_NtCreateThread(__out PHANDLE ThreadHandle,
 	return statusCall;	
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs thread creation.
-//	Parameters :
-//		See http://securityxploded.com/ntcreatethreadex.php (lulz)
-//	Return value :
-//		See http://securityxploded.com/ntcreatethreadex.php (lulz)
-//	Process :
-//		Gets the thread's owner, proceeds the call then adds immediately the targetProcessId to the monitored
-//		processes list if it succeeded. Then logs.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 								 __in ACCESS_MASK DesiredAccess,
 								 __in POBJECT_ATTRIBUTES ObjectAttributes,
@@ -602,7 +551,7 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 {
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
-	HANDLE kThreadHandle = 0;
+	HANDLE kThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
@@ -637,15 +586,17 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
+			else
+				RtlInitUnicodeString(&kObjectName, L"");
 			newProcessId = getPIDByHandle(ProcessHandle);
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"0,-1,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"0,-1,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -669,15 +620,15 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"0,-1,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"0,-1,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"1,0,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateThreadEx, L"1,0,ssssssss,ThreadHandle->0,DesiredAccess->0,ThreadName->NULL,ProcessHandle->0,FunctionAddress->0,Parameter->0,CreateSuspended->0,StackZeroBits->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -686,16 +637,7 @@ NTSTATUS Hooked_NtCreateThreadEx(__out PHANDLE ThreadHandle,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs thread context manipulation (may be used for code injection).
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/Thread%20Context/NtSetContextThread.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/Thread%20Context/NtSetContextThread.html
-//	Process :
-//		Pass the call, adds the process (thread owner) to the monitored processes list and logs.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 NTSTATUS Hooked_NtSetContextThread(__in HANDLE ThreadHandle,
 								   __in PCONTEXT Context)								   
 {
@@ -735,15 +677,15 @@ NTSTATUS Hooked_NtSetContextThread(__in HANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, L"0,-1,s,ThreadHandle->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, L"0,-1,s,ThreadHandle->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, L"1,0,s,ThreadHandle->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtSetContextThread, L"1,0,s,ThreadHandle->0");
 			break;
 		}
 		if(parameter != NULL) 
@@ -752,16 +694,6 @@ NTSTATUS Hooked_NtSetContextThread(__in HANDLE ThreadHandle,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//  	Logs resume thread
-//  Parameters :
-//  	See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/NtResumeThread.html
-//  Return value :
-//  	See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Thread/NtResumeThread.html
-//	Process :
-//		logs thread handle and SuspendCount
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtResumeThread(__in HANDLE ThreadHandle,
 							   __out_opt PULONG SuspendCount)
 {
@@ -792,9 +724,9 @@ NTSTATUS Hooked_NtResumeThread(__in HANDLE ThreadHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ss,ThreadHandle->0,SuspendCount->0", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtResumeThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtResumeThread, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"0,-1,ss,ThreadHandle->0,SuspendCount->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"0,-1,ss,ThreadHandle->0,SuspendCount->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -817,15 +749,15 @@ NTSTATUS Hooked_NtResumeThread(__in HANDLE ThreadHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtResumeThread, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtResumeThread, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"0,-1,ss,ThreadHandle->0,SuspendCount->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"0,-1,ss,ThreadHandle->0,SuspendCount->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"1,0,ss,ThreadHandle->0,SuspendCount->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtResumeThread, L"1,0,ss,ThreadHandle->0,SuspendCount->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -834,25 +766,14 @@ NTSTATUS Hooked_NtResumeThread(__in HANDLE ThreadHandle,
 	return statusCall;		
 }							   
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process opening (mandatory for most of code injection techniques), and hides specific processes
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567022(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567022(v=vs.85).aspx
-//	Process :
-//		Calls the original function and if it succeeds, gets the targetProcessId by handle. If the targetProcessId is hidden
-//		closes the handle and returns STATUS_INVALID_PARAMETER.
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 							  __in ACCESS_MASK DesiredAccess,
 							  __in POBJECT_ATTRIBUTES ObjectAttributes,
 							  __in_opt PCLIENT_ID ClientId)
 {
 	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId, targetProcessId;
-	HANDLE kProcessHandle;
+	ULONG currentProcessId, targetProcessId = 0;
+	HANDLE kProcessHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	
@@ -887,9 +808,9 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -900,9 +821,9 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 			if(IsProcessInList(targetProcessId, pHiddenProcessListHead))
 			{
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,-1,sss,ProcessHandle->0x%08x,DesiredAccess->0x%08x,ProcessIdentifier->%d", kProcessHandle, DesiredAccess, targetProcessId)))
-					sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
+					SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
 				else
-					sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
+					SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");	
 				NtClose(*ProcessHandle);
 				return STATUS_INVALID_PARAMETER;
 			}
@@ -921,15 +842,15 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"0,-1,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"1,0,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtOpenProcess, L"1,0,sss,ProcessHandle->0,DesiredAccess->0,ProcessIdentifier->0");
 			break;
 		}
 		if(parameter != NULL)
@@ -938,17 +859,6 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs section mapping (may be used for code injection).
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff566481(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff566481(v=vs.85).aspx
-//	Process :
-//		Proceeds the call, then if the process is not the current one, adds it to the monitored
-//		processes list then logs it.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 								   __in HANDLE ProcessHandle,
 								   __inout PVOID *BaseAddress,
@@ -963,17 +873,15 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
 	USHORT log_lvl = LOG_ERROR;
-	LARGE_INTEGER kSectionOffset;
+	LARGE_INTEGER kSectionOffset = {0};
 	ULONG kViewSize = 0;
 	ULONG ulBytesRead = 0;
 	PWCHAR buff = NULL;
 	PUCHAR buff2 = NULL;
 	PWCHAR parameter = NULL;
 	PVOID kBaseAddress = NULL;
-	kSectionOffset.QuadPart = 0;
 	
 	PAGED_CODE();
-	
 	currentProcessId = (ULONG)PsGetCurrentProcessId();
 	
 	statusCall = Orig_NtMapViewOfSection(SectionHandle, ProcessHandle, BaseAddress, ZeroBits, CommitSize, SectionOffset, ViewSize, InheritDisposition, AllocationType, Win32Protect);
@@ -991,7 +899,10 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 			__try
 			{
 				if(SectionOffset)
-					kSectionOffset = ProbeForReadLargeInteger(SectionOffset);
+				{
+					ProbeForReadLargeInteger(SectionOffset);
+					kSectionOffset = *SectionOffset;
+				}
 				if(BaseAddress)
 					kBaseAddress = *BaseAddress;
 				if(ViewSize)
@@ -1004,9 +915,9 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 			{
 				exceptionCode = GetExceptionCode();
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR", exceptionCode)))
-					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, parameter);
+					SendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, parameter);
 				else
-					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"0,-1,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
+					SendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"0,-1,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
 				if(parameter != NULL)
 					PoolFree(parameter);
 				return statusCall;
@@ -1020,15 +931,11 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 					
 			if(NT_SUCCESS(statusCall))
 			{
-				/*
-				if(buff && buff2)
+				if(kBaseAddress)
 				{
-					if(kBaseAddress)
-					{
-						Orig_NtReadVirtualMemory(ProcessHandle, kBaseAddress, buff2, kViewSize, &ulBytesRead);
-						CopyBuffer(buff, buff2, ulBytesRead);
-					}
-				}*/
+					Orig_NtReadVirtualMemory(ProcessHandle, kBaseAddress, buff2, kViewSize, &ulBytesRead);
+					CopyBuffer(buff, buff2, ulBytesRead);
+				}
 				log_lvl = LOG_SUCCESS;
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssssss,SectionHandle->0x%08x,ProcessHandle->0x%08x,BaseAddress->0x%08x,CommitSize->%d,SectionOffset->%d,ViewSize->%d,AllocationType->%d,Win32Protect->%d,Buffer->%ws", SectionHandle, ProcessHandle, kBaseAddress, CommitSize, 0/*kSectionOffset.QuadPart*/, kViewSize, AllocationType, Win32Protect, buff)))
 					log_lvl = LOG_PARAM;
@@ -1046,13 +953,13 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 			switch(log_lvl)
 			{
 				case LOG_PARAM:
-					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, parameter);
+					SendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, parameter);
 					break;
 				case LOG_SUCCESS:
-					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"1,0,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
+					SendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"1,0,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
 					break;
 				default:
-					sendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"0,-1,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
+					SendLogs(currentProcessId, SIG_ntdll_NtMapViewOfSection, L"0,-1,sssssssss,SectionHandle->0,ProcessHandle->0,BaseAddress->0,CommitSize->0,SectionOffset->0,ViewSize->0,AllocationType->0,Win32Protect->0,Buffer->ERROR");
 			}
 			if(buff != NULL)
 				PoolFree(buff);
@@ -1065,16 +972,7 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 	return statusCall;		
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs virtual memory read.
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Memory%20Management/Virtual%20Memory/NtReadVirtualMemory.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Memory%20Management/Virtual%20Memory/NtReadVirtualMemory.html
-//	Process :
-//		logs the ProcessHandle, BaseAddress and Buffer parameters.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 									__in PVOID BaseAddress,
 									__out PVOID Buffer,
@@ -1084,7 +982,7 @@ NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId;
 	USHORT log_lvl = LOG_ERROR;
-	ULONG kBufferSize;
+	ULONG kBufferSize = 0;
 	PUCHAR kBuffer = NULL;
 	PWCHAR buff = NULL;
 	PWCHAR parameter = NULL;
@@ -1103,8 +1001,11 @@ NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 		
 		__try
 		{
-			ProbeForRead(NumberOfBytesReaded, sizeof(ULONG), 1);	
-			kBufferSize = *NumberOfBytesReaded;
+			if(NumberOfBytesReaded)
+			{
+				ProbeForRead(NumberOfBytesReaded, sizeof(ULONG), 1);	
+				kBufferSize = *NumberOfBytesReaded;
+			}
 			ProbeForRead(Buffer, kBufferSize, 1);
 			kBuffer = Buffer;
 		}
@@ -1112,9 +1013,9 @@ NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1140,13 +1041,13 @@ NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, parameter);
 				break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"1,0,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"1,0,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 				break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtReadVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 		}
 
 		if(parameter != NULL)
@@ -1157,16 +1058,6 @@ NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs virtual memory modification.
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Memory%20Management/Virtual%20Memory/NtWriteVirtualMemory.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/Memory%20Management/Virtual%20Memory/NtWriteVirtualMemory.html
-//	Process :
-//		Adds the process to the monitored processes list and logs the ProcessHandle, BaseAddress and Buffer parameters.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 									 __in PVOID BaseAddress,
 									 __in PVOID Buffer,
@@ -1201,19 +1092,16 @@ NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 				ProbeForRead(NumberOfBytesWritten, sizeof(ULONG), 1);	
 				kBufferSize = *NumberOfBytesWritten;
 			}
-			if(Buffer != NULL)
-			{
-				ProbeForRead(Buffer, kBufferSize, 1);
-				kBuffer = Buffer;
-			}
+			ProbeForRead(Buffer, kBufferSize, 1);
+			kBuffer = Buffer;
 		}
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1241,13 +1129,13 @@ NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, parameter);
 				break;
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"1,0,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"1,0,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 				break;
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtWriteVirtualMemory, L"0,-1,sss,ProcessHandle->0,BaseAddress->0,Buffer->ERROR");
 		}
 
 		if(parameter != NULL)
@@ -1258,15 +1146,6 @@ NTSTATUS Hooked_NtWriteVirtualMemory(__in HANDLE ProcessHandle,
 	return statusCall;		
 }
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process creation.
-//	Parameters :
-//		See http://www.rohitab.com/discuss/topic/40191-ntcreateuserprocess/ (lulz)
-//	Return value :
-//		See http://www.rohitab.com/discuss/topic/40191-ntcreateuserprocess/ (lulz)
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 									__out PHANDLE ThreadHandle,
 									__in ACCESS_MASK ProcessDesiredAccess,
@@ -1282,7 +1161,7 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
 	UNICODE_STRING process_name, thread_name;
-	HANDLE kProcessHandle = 0, kThreadHandle = 0;
+	HANDLE kProcessHandle = (HANDLE)INVALID_HANDLE_VALUE, kThreadHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	
@@ -1318,9 +1197,9 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,0x%08x,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1344,15 +1223,15 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"1,0,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateUserProcess, L"1,0,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -1361,17 +1240,6 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process creation.
-//	Parameters :
-//		See https://doxygen.reactos.org/d2/d9f/ntoskrnl_2ps_2process_8c_source.html
-//	Return value :
-//		See https://doxygen.reactos.org/d2/d9f/ntoskrnl_2ps_2process_8c_source.html
-//	Process :
-//		Starts the process, gets its targetProcessId and adds it to the monitored processes list, logs
-//		the new process handle, desired access, the flags and the process filepath
-////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 								  __in ACCESS_MASK DesiredAccess,
 								  __in_opt POBJECT_ATTRIBUTES ObjectAttributes,
@@ -1384,7 +1252,7 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 {
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
-	HANDLE kProcessHandle = 0;
+	HANDLE kProcessHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
@@ -1421,14 +1289,16 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
+			else
+				RtlInitUnicodeString(&kObjectName, L"");
 		}
 		__except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1452,15 +1322,15 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"1,0,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcessEx, L"1,0,ssss,ProcessHandle->0,DesiredAccess->0,Flags->0,FilePath->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -1469,17 +1339,6 @@ NTSTATUS Hooked_NtCreateProcessEx(__out PHANDLE ProcessHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Logs process creation.
-//	Parameters :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Process/NtCreateProcess.html
-//	Return value :
-//		See http://undocumented.ntinternals.net/UserMode/Undocumented%20Functions/NT%20Objects/Process/NtCreateProcess.html
-//	Process :
-//		Starts the process, gets its targetProcessId and adds it to the monitored processes list, logs
-//		the new process handle, desired access, inherit object table and its filepath
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 								__in ACCESS_MASK DesiredAccess,
 								__in_opt POBJECT_ATTRIBUTES ObjectAttributes,
@@ -1491,7 +1350,7 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 {
 	NTSTATUS statusCall, exceptionCode;
 	ULONG currentProcessId, newProcessId = 0;
-	HANDLE kProcessHandle = 0;
+	HANDLE kProcessHandle = (HANDLE)INVALID_HANDLE_VALUE;
 	UNICODE_STRING kObjectName;
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
@@ -1526,14 +1385,16 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
+			else
+				RtlInitUnicodeString(&kObjectName, L"");
 		}
 		__except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR", exceptionCode)))
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, parameter);
 			else
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1558,15 +1419,15 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"0,-1,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"1,0,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntdll_NtCreateProcess, L"1,0,ssss,ProcessHandle->0,DesiredAccess->0,InheritObjectTable->0,FilePath->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -1575,16 +1436,6 @@ NTSTATUS Hooked_NtCreateProcess(__out PHANDLE ProcessHandle,
 	return statusCall;	
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//  	Logs process termination.
-//  Parameters :
-//  	See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567115%28v=vs.85%29.aspx
-//  Return value :
-//  	See http://msdn.microsoft.com/en-us/library/windows/hardware/ff567115%28v=vs.85%29.aspx
-//	Process :
-//		logs process handle and exit status	
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Hooked_NtTerminateProcess(__in_opt HANDLE ProcessHandle,
 								   __in NTSTATUS ExitStatus)
 {
@@ -1636,15 +1487,15 @@ NTSTATUS Hooked_NtTerminateProcess(__in_opt HANDLE ProcessHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				sendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, parameter);
+				SendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, parameter);
 			break;
 				
 			case LOG_SUCCESS:
-				sendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, L"0,-1,ss,ProcessHandle->0,ExitStatus->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, L"0,-1,ss,ProcessHandle->0,ExitStatus->0");
 			break;
 				
 			default:
-				sendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, L"1,0,ss,ProcessHandle->0,ExitStatus->0");
+				SendLogs(currentProcessId, SIG_ntdll_NtTerminateProcess, L"1,0,ss,ProcessHandle->0,ExitStatus->0");
 			break;
 		}
 		if(parameter != NULL)

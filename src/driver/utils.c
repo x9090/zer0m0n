@@ -1,10 +1,44 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//	zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//	File :		utils.c
+//	Abstract :	Utils function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
+//
+/////////////////////////////////////////////////////////////////////////////
+
+#include "struct.h"
 #include "utils.h"
 #include "monitor.h"
 #include "hook_reg.h"
 #include "query_information.h"
 #include "main.h"
 
-NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey)
+
+NTSTATUS reg_get_key(__in HANDLE KeyHandle, 
+					 __out PWCHAR regkey)
 {
 	ULONG buffer_length, length;
 	KEY_NAME_INFORMATION *key_name_information;
@@ -29,16 +63,6 @@ NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey)
 	return STATUS_SUCCESS;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		wcsstr case-insensitive version (scans "haystack" for "needle").
-//	Parameters :
-//		_in_ PWCHAR *haystack :	PWCHAR string to be scanned.
-//		_in_ PWCHAR *needle :	PWCHAR string to find.
-//	Return value :
-//		PWCHAR : NULL if not found, otherwise "needle" first occurence pointer in "haystack".
-//	Notes : http://www.codeproject.com/Articles/383185/SSE-accelerated-case-insensitive-substring-search
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 PWCHAR wcsistr(PWCHAR wcs1, PWCHAR wcs2)
 {
     const wchar_t *s1, *s2;
@@ -66,15 +90,7 @@ PWCHAR wcsistr(PWCHAR wcs1, PWCHAR wcs2)
     return NULL;
 } 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Parses received PIDs and adds them in the hidden list.
-//	Parameters :
-//		IRP buffer data.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS on success.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS parse_pids(PCHAR pids)
+NTSTATUS ParsePids(__in PCHAR pids)
 {
 	PCHAR start = NULL, current = NULL, data = NULL;
 	size_t len;
@@ -149,15 +165,7 @@ VOID Resolve_FunctionsAddr()
 	ZwQuerySection = MmGetSystemRoutineAddress(&usFuncName);
 }	
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieves and returns the thread identifier from its handle.
-//	Parameters :
-//		_in_ HANDLE hThread : Thread handle.
-//	Return value :
-//		ULONG : Thread Identifier or NULL if failure.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getPIDByThreadHandle(HANDLE hThread)
+ULONG getPIDByThreadHandle(__in HANDLE hThread)
 {
 	THREAD_BASIC_INFORMATION teb;
 	
@@ -168,15 +176,7 @@ ULONG getPIDByThreadHandle(HANDLE hThread)
 	return 0;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieves and returns the thread identifier from its handle.
-//	Parameters :
-//		_in_ HANDLE hThread : Thread handle.
-//	Return value :
-//		ULONG : Thread Identifier or NULL if failure.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getTIDByHandle(HANDLE hThread)
+ULONG getTIDByHandle(__in HANDLE hThread)
 {
 	THREAD_BASIC_INFORMATION teb;
 	
@@ -187,17 +187,7 @@ ULONG getTIDByHandle(HANDLE hThread)
 	return 0;
 }
 	
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieves and returns the process identifier from its handle.
-//	Parameters :
-//		_in_opt_ HANDLE hProc :	Process handle. If NULL, retrieves current process identifier.
-//	Return value :
-//		ULONG : -1 if an error was encountered, otherwise, process identifier.
-//	TODO :
-//		Place function retrieval at startup / dynamic import.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getPIDByHandle(HANDLE hProc)
+ULONG getPIDByHandle(__in HANDLE hProc)
 {
 	PROCESS_BASIC_INFORMATION peb;
 	
@@ -208,17 +198,9 @@ ULONG getPIDByHandle(HANDLE hProc)
 	return 0;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Copy the content of src buffer to dst buffer
-//	Parameters :
-//		_out_ PWCHAR dst : the buffer of destination
-//		_in_  PUCHAR src : the buffer to be copied
-//		_in_  ULONG size : the size of the src buffer  	
-//	Return value :
-//		None
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID CopyBuffer(PWCHAR dst, PUCHAR src, ULONG_PTR size)
+VOID CopyBuffer(__out PWCHAR dst, 
+				__in PUCHAR src, 
+				__in ULONG_PTR size)
 {
 	ULONG i, n = 0;
 	if(dst && src && size)
@@ -229,30 +211,25 @@ VOID CopyBuffer(PWCHAR dst, PUCHAR src, ULONG_PTR size)
 			if(i >= (BUFFER_LOG_MAX/2))
 				break;
 			
-			if((src[i] >= 0x20) && (src[i] <= 0x7E) && (src[i] != 0x2C))
+			if(src[i] != 0x00)
 			{
-				RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"%c", src[i]);
-				n++;
-			}
-			else
-			{
-				RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"\\x%02x", src[i]);
-				n+=4;
+				if((src[i] >= 0x20) && (src[i] <= 0x7E) && (src[i] != 0x2C))
+				{
+					RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"%c", src[i]);
+					n++;
+				}
+				else
+				{
+					RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"\\x%02x", src[i]);
+					n+=4;
+				}
 			}
 		}
 	}
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Move the file given as parameter to the cuckoo directory
-//	Parameters :
-//		_in_  UNICODE_STRING filepath : the file to be moved
-//		_out_ PUNICODE_STRING filepath_to_dump : the new pathfile (after the file has been moved)  	
-//	Return value :
-//		STATUS_SUCCESS if the file has correctly been moved, otherwise return error message
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS dump_file(UNICODE_STRING filepath, PUNICODE_STRING filepath_to_dump)
+NTSTATUS dump_file(__in UNICODE_STRING filepath, 
+				   __out PUNICODE_STRING filepath_to_dump)
 {
 	NTSTATUS status;
 	PWCHAR ptr_filename = NULL;
@@ -318,16 +295,8 @@ NTSTATUS dump_file(UNICODE_STRING filepath, PUNICODE_STRING filepath_to_dump)
 	return status;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieves and returns the process name from its handle.
-//	Parameters :
-//		_in_opt_ HANDLE hProc : Process ID
-//		_out_ PUNICODE_STRING : Caller allocated UNICODE_STRING, process name.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS getProcNameByPID(ULONG pid, PUNICODE_STRING procName)
+NTSTATUS getProcNameByPID(__in ULONG pid, 
+						  __out PUNICODE_STRING procName)
 {
 	NTSTATUS status;
 	HANDLE hProcess;

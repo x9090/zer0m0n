@@ -1,3 +1,33 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//  zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//  File :      utils.h
+//  Abstract :  Utils header for zer0m0n
+//  Revision :  v1.1
+//  Author :    Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//  Email :     contact.zer0m0n@gmail.com
+//  Date :      2016-07-05      
+//
+/////////////////////////////////////////////////////////////////////////////
 #ifndef __UTILS_H
 #define __UTILS_H
 
@@ -9,18 +39,41 @@
 	sizeof(OBJECT_NAME_INFORMATION) + sizeof(WCHAR) + MAX_PATH
 	
 
-typedef struct _THREAD_BASIC_INFORMATION {
-    NTSTATUS	ExitStatus;
-    PVOID	TebBaseAddress;
-    CLIENT_ID	ClientId;
-    ULONG	AffinityMask;
-    ULONG	Priority;
-    ULONG	BasePriority;
-} THREAD_BASIC_INFORMATION, *PTHREAD_BASIC_INFORMATION;
+/////////////////////////////////////////////////////////////////////////////
+// FUNCTIONS
+/////////////////////////////////////////////////////////////////////////////
 
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
+//		Retrieves functions addresses
+//	Parameters :
+//		None
+//	Return value :
+//		None
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID Resolve_FunctionsAddr();
-NTSTATUS parse_pids(PCHAR pids);
-NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
+//		Parses received PIDs and adds them in the hidden list.
+//	Parameters :
+//		list of pids to hide.
+//	Return value :
+//		NTSTATUS : STATUS_SUCCESS on success.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS ParsePids(__in PCHAR pids);
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
+//		Retrieve the registry key name from the key handle
+//	Parameters :
+//		
+//	Return value :
+//		NTSTATUS : STATUS_SUCCESS on success.
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS reg_get_key(__in HANDLE KeyHandle, 
+					 __out PWCHAR regkey);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -32,7 +85,8 @@ NTSTATUS reg_get_key(HANDLE KeyHandle, PWCHAR regkey);
 //		PWCHAR : NULL if not found, otherwise "needle" first occurence pointer in "haystack".
 //	Notes : http://www.codeproject.com/Articles/383185/SSE-accelerated-case-insensitive-substring-search
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PWCHAR wcsistr(PWCHAR wcs1, PWCHAR wcs2);
+PWCHAR wcsistr(__in PWCHAR wcs1, 
+			   __in PWCHAR wcs2);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -42,7 +96,7 @@ PWCHAR wcsistr(PWCHAR wcs1, PWCHAR wcs2);
 //	Return value :
 //		ULONG : Thread Identifier or NULL if failure.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getTIDByHandle(HANDLE hThread);
+ULONG getTIDByHandle(__in HANDLE hThread);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -52,7 +106,7 @@ ULONG getTIDByHandle(HANDLE hThread);
 //	Return value :
 //		ULONG : Thread Identifier or NULL if failure.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getPIDByThreadHandle(HANDLE hThread);
+ULONG getPIDByThreadHandle(__in HANDLE hThread);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -62,7 +116,7 @@ ULONG getPIDByThreadHandle(HANDLE hThread);
 //	Return value :
 //		ULONG : -1 if an error was encountered, otherwise, process identifier.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-ULONG getPIDByHandle(HANDLE hProc);
+ULONG getPIDByHandle(__in HANDLE hProc);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -74,7 +128,9 @@ ULONG getPIDByHandle(HANDLE hProc);
 //	Return value :
 //		None
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID CopyBuffer(PWCHAR dst, PUCHAR src, ULONG_PTR size);
+VOID CopyBuffer(__out PWCHAR dst, 
+				__in PUCHAR src, 
+				__in ULONG_PTR size);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -85,7 +141,8 @@ VOID CopyBuffer(PWCHAR dst, PUCHAR src, ULONG_PTR size);
 //	Return value :
 //		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS getProcNameByPID(ULONG pid, PUNICODE_STRING procName);
+NTSTATUS getProcNameByPID(__in ULONG pid, 
+						  __out PUNICODE_STRING procName);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -96,8 +153,7 @@ NTSTATUS getProcNameByPID(ULONG pid, PUNICODE_STRING procName);
 //	Return value :
 //		STATUS_SUCCESS if the file has correctly been moved, otherwise return error message
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS dump_file(UNICODE_STRING filepath, PUNICODE_STRING filepath_to_dump);
+NTSTATUS dump_file(__in UNICODE_STRING filepath, 
+				   __out PUNICODE_STRING filepath_to_dump);
 
 #endif
-
-

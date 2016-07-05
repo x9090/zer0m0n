@@ -1,8 +1,41 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//	zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//	File :		comm.c
+//	Abstract :	Comm function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
+//
+/////////////////////////////////////////////////////////////////////////////
+
 #include "main.h"
+#include "struct.h"
 #include "utils.h"
 #include "monitor.h"
 #include "hooking.h"
 #include "comm.h"
+
 
 // filter callbacks struct
 static const FLT_REGISTRATION fltRegistration =
@@ -22,18 +55,6 @@ static const FLT_REGISTRATION fltRegistration =
 	NULL
 };
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : initializes the filter port
-//
-//	Parameters : 
-//		__in PDRIVER_OBJECT pDriverObject :	    Data structure used to represent the driver.
-//
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if the minifilter initialization has been well completed
-//	Process :
-//		Register filter / Creates communication port
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS InitMinifilter(__in PDRIVER_OBJECT pDriverObject)
 {
 	NTSTATUS status;
@@ -62,21 +83,11 @@ NTSTATUS InitMinifilter(__in PDRIVER_OBJECT pDriverObject)
 }
 
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Filter communication connection callback.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
-//	Return value
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
-//	Process :
-//		Sets the global variable "clientPort" with the supplied client port communication.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS FltConnectCallback(__in PFLT_PORT ClientPort, 
-		__in PVOID ServerPortCookie, 
-		__in PVOID ConnectionContext, 
-		__in ULONG SizeOfContext, 
-		__out PVOID* ConnectionPortCookie)
+							__in PVOID ServerPortCookie, 	
+							__in PVOID ConnectionContext, 
+							__in ULONG SizeOfContext, 
+							__out PVOID *ConnectionPortCookie)
 {
 	if(ClientPort == NULL)
 		return STATUS_INVALID_PARAMETER;
@@ -85,34 +96,12 @@ NTSTATUS FltConnectCallback(__in PFLT_PORT ClientPort,
 	return STATUS_SUCCESS;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Filter communication disconnection callback.
-//	Parameters : 
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff541931(v=vs.85).aspx
-//	Process :
-//		We don't use it but this callback has to be declared anyway.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID FltDisconnectCallback(__in PVOID ConnectionCookie)
 {
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		DEVICE_IO_CONTROL IRP handler. Used for getting informations from Cuckoo.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
-//	Process :
-//		Handles IRP_MJ_CONTROL IOCTLs.
-//		Retrieves PIDs to monitor / hide  
-//		Destroys the driver symbolic name for security (we don't want someone to interact with the driver).
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
-		__in PIRP pIrp)
+   							 __in PIRP pIrp)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	PIO_STACK_LOCATION pIoStackIrp = NULL;
@@ -124,10 +113,8 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 	if(pIrp == NULL || pDeviceObject == NULL)
 		return STATUS_INVALID_PARAMETER;
 
-	// get the current stack location
 	pIoStackIrp = IoGetCurrentIrpStackLocation(pIrp);
 
-	// get the io control parameters
 	ioControlCode = pIoStackIrp->Parameters.DeviceIoControl.IoControlCode;
 	inputLength = pIoStackIrp->Parameters.DeviceIoControl.InputBufferLength;
 	buffer = pIrp->AssociatedIrp.SystemBuffer;
@@ -144,9 +131,10 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 
 		case IOCTL_PROC_TO_HIDE:
 			Dbg("pids to hide : %s\n", buffer);
-			status = parse_pids(buffer);
+			status = ParsePids(buffer);
 			RtlZeroMemory(buffer, inputLength);
 			break;
+
 
 		case IOCTL_CUCKOO_PATH:
 			cuckooPath = PoolAlloc(MAX_SIZE);
@@ -169,30 +157,13 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 	return status;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Unsupported IRP generic handler. Just completes the request with STATUS_SUCCESS code.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff543287(v=vs.85).aspx
-//	Return value :
-//		NTSTATUS : STATUS_NOT_SUPPORTED
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS Ioctl_NotSupported(__in PDEVICE_OBJECT pDeviceObject,
-		__in PIRP pIrp)
+							__in PIRP pIrp)
 {
 	return STATUS_NOT_SUPPORTED;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//		Unregisters the minifilter.
-//	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
-//	Process :
-//		Closes filter communication port and unregisters the filter.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 NTSTATUS FltUnregister(__in FLT_FILTER_UNLOAD_FLAGS flags)
 {
 	FltCloseCommunicationPort(fltServerPort);
@@ -203,7 +174,9 @@ NTSTATUS FltUnregister(__in FLT_FILTER_UNLOAD_FLAGS flags)
 	return STATUS_FLT_DO_NOT_DETACH;
 }
 
-NTSTATUS sendLogs(ULONG pid, ULONG sig_func, PWCHAR parameter)
+NTSTATUS SendLogs(__in ULONG pid, 
+				  __in ULONG sig_func, 
+				  __in PWCHAR parameter)
 {
 	NTSTATUS status = STATUS_SUCCESS;
 	CHAR buf[MAX_SIZE];

@@ -1,3 +1,35 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//	zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//	File :		hooking.c
+//	Abstract :	Hooking function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
+//
+/////////////////////////////////////////////////////////////////////////////
+
+#include "struct.h"
 #include "hooking.h"
 #include "main.h"
 #include "hook_reg.h"
@@ -24,7 +56,6 @@ PVOID MapNtdllIntoMemory()
 
 	RtlInitUnicodeString(&pathFile, L"\\KnownDlls\\ntdll.dll");
 	InitializeObjectAttributes(&objAttr, &pathFile, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
-	
 	
 	if(NT_SUCCESS(status = ZwOpenSection(&hSection, SECTION_MAP_READ, &objAttr)))
 	{
@@ -55,7 +86,9 @@ PVOID MapNtdllIntoMemory()
 	return pImageExportDirectory;
 }
 
-ULONG GetSyscallNumber(PIMAGE_EXPORT_DIRECTORY pImageExportDirectory, PUCHAR funcName, ULONG offsetSyscall)
+ULONG GetSyscallNumber(__in PIMAGE_EXPORT_DIRECTORY pImageExportDirectory, 
+					   __in PUCHAR funcName, 
+					   __in ULONG offsetSyscall)
 {
 	PULONG addrName = NULL, addrFunc = NULL;
 	PWORD addrOrdinal = NULL;
@@ -91,37 +124,16 @@ ULONG GetSyscallNumber(PIMAGE_EXPORT_DIRECTORY pImageExportDirectory, PUCHAR fun
 			}
 		}
 	}
-	Dbg("FUUUU : %s\n", funcName);
 	return 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-//		Retrieve index of the Nt* function (given in parameter) in the SSDT
-//	Parameters :
-//		PULONG KiServiceTable : the SSDT address
-//		PVOID FuncAddress 	  : a Nt* function address
-//	Return value :
-//		ULONG : the address which stores the Nt* function address (FuncAddress) in the SSDT
-//	Process :
-//		same as GetNtAddressFromSSDT() but in revert order
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////  
-ULONG GetSSDTEntry(PULONG KiServiceTable, PVOID FuncAddress)
+ULONG GetSSDTEntry(__in PULONG KiServiceTable, 
+				   __in PVOID FuncAddress)
 {
 	return ((ULONG)((ULONGLONG)FuncAddress-(ULONGLONG)KiServiceTable)) << 4;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-//		Retrieve 12 bytes of free space in order to use that space as trampoline 
-//	Parameters :
-//		PUCHAR pStartSearchAddress : address where we will begin to search for 12 bytes of code cave
-//	Return value :
-//		PVOID : address of the code cave found
-//	Process :
-//		Search for 12 successive bytes at 0x00 from the address given in argument and returns the address found
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////  
-PVOID SearchCodeCave(PUCHAR pStartSearchAddress)
+PVOID SearchCodeCave(__in PUCHAR pStartSearchAddress)
 {	
 	while(pStartSearchAddress++)
 	{		
@@ -133,37 +145,15 @@ PVOID SearchCodeCave(PUCHAR pStartSearchAddress)
 	}
 	return 0;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-//		Retrieve the Nt* address function given its syscall number in the SSDT
-//	Parameters :
-//		PULONG KiServiceTable : the SSDT base address
-//		ULONG  ServiceId 	  : a syscall number
-//	Return value :
-//		ULONGLONG : the address of the function which has the syscall number given in argument
-//	Process :
-//		Because the addresses contained in the SSDT have the last four bits reserved to store the number of arguments,
-//		in order to retrieve only the address, we shift four bits to the right
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////  
-ULONGLONG GetNTAddressFromSSDT( PULONG KiServiceTable, ULONG ServiceId )
+ 
+ULONGLONG GetNTAddressFromSSDT(__in PULONG KiServiceTable, 
+							   __in ULONG ServiceId )
 {
 	return (LONGLONG)( KiServiceTable[ServiceId] >> 4 ) 
 		+ (ULONGLONG)KiServiceTable;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieve end address of the .text section of the module given in argument
-//	Parameters :
-//		PVOID moduleBase : base address of a module
-//	Return value :
-//		Returns end address of .text section of moduleBase
-//	Process :
-//		Parse module base PE header to get the number of sections and to retrieve section header address,
-//		then parse each section and when we get to the .text section, returns address of the end of the section
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PVOID GetEndOfTextSection(PVOID moduleBase)
+PVOID GetEndOfTextSection(__in PVOID moduleBase)
 {
 	USHORT NumberOfSections;
 	PIMAGE_DOS_HEADER pDosHeader = NULL;
@@ -197,17 +187,7 @@ PVOID GetEndOfTextSection(PVOID moduleBase)
 	}
 	return end_text;
 }
-
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-//		Retrieve kernel base address
-//	Parameters :
-//		None
-//	Return value :
-//		PVOID : the kernel base address
-//	Process :
-//		Retrieve the ntoskrnl module and returns its base address
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////   
+ 
 PVOID GetKernelBase()
 {
 	UNICODE_STRING funcAddr;
@@ -232,24 +212,6 @@ PVOID GetKernelBase()
 	return 0;
 }
 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Retrieve KeServiceDescriptorTable address
-//	Parameters :
-//		None
-//	Return value :
-//		ULONGLONG : The service descriptor table address 
-//	Process :
-//		Since KeServiceDescriptorTable isn't an exported symbol anymore, we have to retrieve it. 
-//		When looking at the disassembly version of nt!KiSystemServiceRepeat, we can see interesting instructions :
-//			4c8d15c7202300	lea r10, [nt!KeServiceDescriptorTable (addr)]    => it's the address we are looking for (:
-//			4c8d1d00212300	lea r11, [nt!KeServiceDescriptorTableShadow (addr)]
-//			f7830001000080  test dword ptr[rbx+100h], 80h
-//
-//		Furthermore, the LSTAR MSR value (at 0xC0000082) is initialized with nt!KiSystemCall64, which is a function 
-//		close to nt!KiSystemServiceRepeat. We will begin to search from this address, the opcodes 0x83f7, the ones 
-//		after the two lea instructions, once we get here, we can finally retrieve the KeServiceDescriptorTable address 
-////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 ULONGLONG GetKeServiceDescriptorTable64()
 {
 	PUCHAR      pStartSearchAddress   = (PUCHAR)__readmsr(0xC0000082);
@@ -268,16 +230,6 @@ ULONGLONG GetKeServiceDescriptorTable64()
 	return 0;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		install SSDT hooks
-//	Parameters :
-//		None
-//	Return value :
-//		None
-//	Process :
-//		Retrieve SSDT address and hook SSDT table
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID HookSSDT()
 {
 	PDWORD func = NULL;
@@ -298,9 +250,6 @@ VOID HookSSDT()
 	Dbg("pStartSearchAddress : %llx\n", pStartSearchAddress);
 	offsetSyscall = 21;
 #endif
-	// missing LoadDriver hook
-	// missing DelayExecution hook
-	// missing imageCallback hook
 
 	pImageExportDirectory = MapNtdllIntoMemory();
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwWriteFile", offsetSyscall), (PVOID)Hooked_NtWriteFile, (PVOID*)&Orig_NtWriteFile, pStartSearchAddress, KiServiceTable);
@@ -331,9 +280,9 @@ VOID HookSSDT()
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenProcess", offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwResumeThread", offsetSyscall), (PVOID)Hooked_NtResumeThread, (PVOID*)&Orig_NtResumeThread, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSetContextThread", offsetSyscall), (PVOID)Hooked_NtSetContextThread, (PVOID*)&Orig_NtSetContextThread, pStartSearchAddress, KiServiceTable);
-//	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThread", offsetSyscall), (PVOID)Hooked_NtCreateThread, (PVOID*)&Orig_NtCreateThread, pStartSearchAddress, KiServiceTable);
-//	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThreadEx", offsetSyscall), (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
-//	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateSection", offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);//
+	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThread", offsetSyscall), (PVOID)Hooked_NtCreateThread, (PVOID*)&Orig_NtCreateThread, pStartSearchAddress, KiServiceTable);
+	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThreadEx", offsetSyscall), (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
+	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateSection", offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);//
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall), (PVOID)Hooked_NtSystemDebugControl, (PVOID*)&Orig_NtSystemDebugControl, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQueueApcThread", offsetSyscall), (PVOID)Hooked_NtQueueApcThread, (PVOID*)&Orig_NtQueueApcThread, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenThread", offsetSyscall), (PVOID)Hooked_NtOpenThread, (PVOID*)&Orig_NtOpenThread, pStartSearchAddress, KiServiceTable);
@@ -341,19 +290,14 @@ VOID HookSSDT()
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall), (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);
 
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateMutant", offsetSyscall), (PVOID)Hooked_NtCreateMutant, (PVOID*)&Orig_NtCreateMutant, pStartSearchAddress, KiServiceTable);
+	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDelayExecution", offsetSyscall), (PVOID)Hooked_NtDelayExecution, (PVOID*)&Orig_NtDelayExecution, pStartSearchAddress, KiServiceTable);
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Modify an entry of the SSDT by an address of the corresponding hooked function.
-//	Parameters :
-//		__in ULONG syscall     : syscall number of the function we want to hook
-//		__in PVOID hookedFunc  : address of the hooked function
-//		__inout PVOID origFunc : address of the function to hook
-//	Return value :
-//		None
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID Install_Hook(ULONG syscall, PVOID hookedFunc, PVOID *origFunc, PVOID searchAddr, PULONG KiServiceTable)
+VOID Install_Hook(__in ULONG syscall, 
+				  __in PVOID hookedFunc, 
+				  __inout PVOID *origFunc, 
+				  __in PVOID searchAddr, 
+				  __in PULONG KiServiceTable)
 {	
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	UCHAR jmp_to_newFunction[] = "\x48\xB8\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00\xFF\xE0"; //mov rax, xxx ; jmp rax
@@ -398,15 +342,7 @@ VOID Install_Hook(ULONG syscall, PVOID hookedFunc, PVOID *origFunc, PVOID search
 
 	}
 }
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Unsets WP bit of CR0 register (allows writing into SSDT).
-//		See http://en.wikipedia.org/wiki/Control_register#CR0
-//	Parameters :
-//		None
-//	Return value :
-//		KIRQL : current IRQL value
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 KIRQL UnsetWP( )
 {
 	KIRQL Irql = KeRaiseIrqlToDpcLevel();
@@ -419,14 +355,6 @@ KIRQL UnsetWP( )
 	return Irql;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Sets WP bit of CR0 register.
-//	Parameters :
-//		None
-//	Return value :
-//		None
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID SetWP(KIRQL Irql)
 {
 	UINT_PTR cr0 = __readcr0();

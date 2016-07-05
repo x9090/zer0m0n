@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////
 //
-//	zer0m0n DRIVER
+//	zer0m0n 
 //
-//  Copyright 2014 Nicolas Correia, Adrien Chevalier
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
 //
 //  This file is part of zer0m0n.
 //
@@ -21,12 +21,11 @@
 //
 //
 //	File :		main.h
-//	Abstract :	Main header for Cuckoo Zero Driver
+//	Abstract :	Main header for zer0m0n
 //	Revision : 	v1.1
-//	Author :	Adrien Chevalier & Nicolas Correia
-//	Email :		// à mettre...
-//	Date :		2014-10-01	  
-//	Notes : 	
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	 	
 //
 /////////////////////////////////////////////////////////////////////////////
 
@@ -60,6 +59,7 @@ KMUTEX mutex;
 /////////////////////////////////////////////////////////////////////////////
 // GLOBALS
 /////////////////////////////////////////////////////////////////////////////
+
 
 // some functions needed to import
 typedef NTSTATUS (*ZWQUERYSYSTEMINFORMATION)(SYSTEM_INFORMATION_CLASS,PVOID,ULONG,PULONG);
@@ -104,27 +104,38 @@ PFLT_PORT 		fltClientPort;
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-//		Initializes the driver, communication and hooks.
+//	Description : initializes the driver, communication and hooks.
+//
 //	Parameters : 
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff544113%28v=vs.85%29.aspx
+//		__in PDRIVER_OBJECT pDriverObject :	    Data structure used to represent the driver.
+//		__in PUNICODE_STRING pRegistryPath :	Registry location where the information for the driver
+//												was stored.
 //	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff544113%28v=vs.85%29.aspx
+//		NTSTATUS : STATUS_SUCCESS if the driver initialization has been well completed
+//	Process :
+//		Import needed functions
+//		Creates the device driver and its symbolic link.
+//		Sets IRP callbacks.
+//		Creates filter communication port to send logs from the driver to the userland process.
+//		Creates logs mutex.
+//		Hooks SSDT.
+//		Register image load callback.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 					 __in PUNICODE_STRING pRegistryPath);
 
-
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//		Unregisters the minifilter.
+//	Description :
+//		Driver unload callback. Removes hooks, callbacks, and communication stuff.
+//
 //	Parameters :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
-//	Return value :
-//		See http://msdn.microsoft.com/en-us/library/windows/hardware/ff557310%28v=vs.85%29.aspx
+//		__in PDRIVER_OBJECT pDriverObject :	Data structure used to represent the driver.
+//	Process :
+//		Removes hooks, callbacks, device driver symbolic link / device. 
+//		Cleans the monitored processes linked list.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 VOID Unload(__in PDRIVER_OBJECT pDriverObject);
-
 
 #endif __MAIN_H
