@@ -6,6 +6,8 @@ zer0m0n is a driver for Cuckoo Sandbox, it will perform kernel analysis during t
 It works for XP 32 bit and 7 32 bit/64 bit Windows machines.
 This last version should work on every Windows versions.
 
+![zer0m0n screenshot](screenshot.png?raw=true)
+
 CHANGELOG
 =========
 
