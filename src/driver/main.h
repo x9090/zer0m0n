@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////
 //
-//	zer0m0n DRIVER
+//	zer0m0n 
 //
-//  Copyright 2013 Conix Security, Nicolas Correia, Adrien Chevalier
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
 //
 //  This file is part of zer0m0n.
 //
@@ -21,18 +21,12 @@
 //
 //
 //	File :		main.h
-//	Abstract :	Main header for Cuckoo Zero Driver
-//	Revision : 	v1.0
-//	Author :	Adrien Chevalier & Nicolas Correia
-//	Email :		adrien.chevalier@conix.fr nicolas.correia@conix.fr
-//	Date :		2013-12-26	  
-//	Notes : 	
+//	Abstract :	Main header for zer0m0n
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	 	
 //
-//	TODO : 
-//		- rename removed files to dump them
-//		- handle shutdown case
-//		- logs registries callbacks returns (or move ot SSDT hooks)
-//		- hide processes by PID (get them at startup with cuckoo)
 /////////////////////////////////////////////////////////////////////////////
 
 #ifndef __MAIN_H
@@ -40,115 +34,108 @@
 
 #include <fltkernel.h>
 #include <ntstrsafe.h>
+#include <ntddk.h>
+#include <windef.h>
 
-/////////////////////////////////////////////////////////////////////////////
-// DEFINES
-/////////////////////////////////////////////////////////////////////////////
-
-// Uncomment to enable kernel debugging output
-#define DEBUG
+//#define DEBUG
 #ifdef DEBUG
-	#define Dbg(format, ...)                                          \
-	do {                                                              \
-		DbgPrint (__FUNCTION__ ") " format "\n", ##__VA_ARGS__);      \
-	} while (0)
+	#define Dbg(fmt, ...) \
+		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, fmt, __VA_ARGS__);
 #else
-	#define Dbg(format, ...) \
-		;
+	#define Dbg(fmt, ...)
 #endif
 
-// Memory tags
-#define PROC_POOL_TAG 		'prcT'
-#define THREAD_CALLBACK_TAG 	'thrT'
-#define PROC_CALLBACK_TAG 	'pRcT'
-#define PPROC_CALLBACK_TAG 	'pPrc'
-#define BUF_POOL_TAG 		'bufP'
-#define MONIT_POOL_TAG 		'monP'
-#define BUFFER_TAG 		'mmoP'
-#define TEMP_TAG 		'Yeii'
-#define PROCNAME_TAG 		'giaL'
-				
-// Generic defines
-#define MAXSIZE 			1024
-#define ObjectNameInformation 		1
-
-// log mode
-#define LOG_ERROR 	0	// log a failed call (without params)
-#define LOG_SUCCESS	1	// log a successed call (without params)
-#define LOG_PARAM 	2	// log a call along with the parameters, return value, etc.
-
-// Generic error message
-#define GENERIC_ERROR_MESSAGE L"1,0,s,ERROR";
-// Generic success message
-#define GENERIC_SUCCESS_MESSAGE L"0,-1,s,ERROR";
-
-
-/////////////////////////////////////////////////////////////////////////////
-// STRUCTS
-/////////////////////////////////////////////////////////////////////////////
-
-typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(HANDLE,ULONG,PVOID,ULONG,PULONG);
-typedef NTSTATUS (*ZWQUERYINFORMATIONTHREAD)(HANDLE,ULONG,PVOID,ULONG,PULONG);
-typedef NTSTATUS(*ZWQUERYSYSTEMINFORMATION)(SYSTEM_INFORMATION_CLASS, PVOID, ULONG, PULONG);
-
-// specific imports
-ZWQUERYINFORMATIONPROCESS ZwQueryInformationProcess;
-ZWQUERYINFORMATIONTHREAD ZwQueryInformationThread;
-ZWQUERYSYSTEMINFORMATION ZwQuerySystemInformation;
-
-/////////////////////////////////////////////////////////////////////////////
-// GLOBALS 
-/////////////////////////////////////////////////////////////////////////////
-
-
-// registry callback cookie
-LARGE_INTEGER cookie;
+#define TAG_NAME 		'zm0n'
+#define PoolAlloc(x)	ExAllocatePoolWithTag(NonPagedPool, x, TAG_NAME)
+#define PoolFree(x)		ExFreePoolWithTag(x, TAG_NAME)
 
 // userland communication mutex
 KMUTEX mutex;
 
-// Filter communication stuff
-PFLT_FILTER filter;
-PFLT_PORT serverPort;
-PFLT_PORT clientPort;
+#define FLT_MAX_CONNECTIONS 	1
+#define DRIVER_NAME 			L"zer0m0n"
+#define FILTER_PORT_NAME 		L"\\FilterPort"
+
+/////////////////////////////////////////////////////////////////////////////
+// GLOBALS
+/////////////////////////////////////////////////////////////////////////////
+
+
+// some functions needed to import
+typedef NTSTATUS (*ZWQUERYSYSTEMINFORMATION)(SYSTEM_INFORMATION_CLASS,PVOID,ULONG,PULONG);
+ZWQUERYSYSTEMINFORMATION 	ZwQuerySystemInformation;
+
+typedef NTSTATUS (*ZWQUERYINFORMATIONPROCESS)(HANDLE,ULONG,PVOID,ULONG,PULONG);
+ZWQUERYINFORMATIONPROCESS 	ZwQueryInformationProcess;
+
+typedef NTSTATUS (*ZWQUERYINFORMATIONTHREAD)(HANDLE,ULONG,PVOID,ULONG,PULONG);
+ZWQUERYINFORMATIONTHREAD 	ZwQueryInformationThread;
+
+typedef NTSTATUS (*ZWQUERYATTRIBUTESFILE)(POBJECT_ATTRIBUTES, PFILE_BASIC_INFORMATION);
+ZWQUERYATTRIBUTESFILE 		ZwQueryAttributesFile;
+
+typedef NTSTATUS (*ZWCREATEPROCESS)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, HANDLE, BOOLEAN, HANDLE, HANDLE, HANDLE);
+ZWCREATEPROCESS 			ZwCreateProcess;
+
+typedef NTSTATUS (*ZWCREATEPROCESSEX)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES, HANDLE, ULONG, HANDLE, HANDLE, HANDLE, BOOLEAN);
+ZWCREATEPROCESSEX			ZwCreateProcessEx;
+
+typedef NTSTATUS (*ZWCREATEUSERPROCESS)(PHANDLE, PHANDLE, ACCESS_MASK, ACCESS_MASK, POBJECT_ATTRIBUTES, POBJECT_ATTRIBUTES, ULONG, ULONG, PVOID, PVOID, PVOID);
+ZWCREATEPROCESSEX			ZwCreateUserProcess;
+
+typedef NTSTATUS (*ZWRESUMETHREAD)(HANDLE, PULONG);
+ZWRESUMETHREAD				ZwResumeThread;
+
+typedef NTSTATUS (*ZWQUERYSECTION)(HANDLE, ULONG, PVOID, ULONG, PULONG);
+ZWQUERYSECTION				ZwQuerySection;
 
 // Dos device driver name
-UNICODE_STRING usDosDeviceName;
+UNICODE_STRING 	usDosDeviceName;
 
-// eprocess structure for crss.exe
-PEPROCESS crsEProc;
+// cuckoo path (where the files about to be delete will be moved)
+PWCHAR cuckooPath;
 
-// if set to 1 : xp, otherwise, it's 7
-DWORD is_xp;
+// filter stuff
+PFLT_FILTER 	fltFilter;
+PFLT_PORT 		fltServerPort;
+PFLT_PORT 		fltClientPort;
 
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
 
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Driver entry point, initializes communication, callbacks and hooks.
+//	Description : initializes the driver, communication and hooks.
+//
 //	Parameters : 
+//		__in PDRIVER_OBJECT pDriverObject :	    Data structure used to represent the driver.
+//		__in PUNICODE_STRING pRegistryPath :	Registry location where the information for the driver
+//												was stored.
 //	Return value :
+//		NTSTATUS : STATUS_SUCCESS if the driver initialization has been well completed
+//	Process :
+//		Import needed functions
+//		Creates the device driver and its symbolic link.
+//		Sets IRP callbacks.
+//		Creates filter communication port to send logs from the driver to the userland process.
+//		Creates logs mutex.
+//		Hooks SSDT.
+//		Register image load callback.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject, PUNICODE_STRING pRegistryPath);
+NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
+					 __in PUNICODE_STRING pRegistryPath);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
 //		Driver unload callback. Removes hooks, callbacks, and communication stuff.
+//
 //	Parameters :
+//		__in PDRIVER_OBJECT pDriverObject :	Data structure used to represent the driver.
+//	Process :
+//		Removes hooks, callbacks, device driver symbolic link / device. 
+//		Cleans the monitored processes linked list.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-VOID Unload(PDRIVER_OBJECT pDriverObject);
+VOID Unload(__in PDRIVER_OBJECT pDriverObject);
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//  Description :
-//		Unregisters the minifilter.
-//	Parameters :
-//	Return value :
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS UnregisterFilter(FLT_FILTER_UNLOAD_FLAGS flags);
-
-
-
-#endif
-
+#endif __MAIN_H

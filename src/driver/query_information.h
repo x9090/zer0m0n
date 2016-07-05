@@ -1,3 +1,34 @@
+////////////////////////////////////////////////////////////////////////////
+//
+//  zer0m0n 
+//
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//
+//  This file is part of zer0m0n.
+//
+//  Zer0m0n is free software: you can redistribute it and/or modify
+//  it under the terms of the GNU General Public License as published by
+//  the Free Software Foundation, either version 3 of the License, or
+//  (at your option) any later version.
+//
+//  Zer0m0n is distributed in the hope that it will be useful,
+//  but WITHOUT ANY WARRANTY; without even the implied warranty of
+//  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+//  GNU General Public License for more details.
+//
+//  You should have received a copy of the GNU General Public License
+//  along with Zer0m0n.  If not, see <http://www.gnu.org/licenses/>.
+//
+//
+//  File :      query_information.h
+//  Abstract :  Query information header for zer0m0n
+//  Revision :  v1.1
+//  Author :    Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//  Email :     contact.zer0m0n@gmail.com
+//  Date :      2016-07-05      
+//
+/////////////////////////////////////////////////////////////////////////////
+
 #ifndef __QUERY_INFORMATION_H
 #define __QUERY_INFORMATION_H
 
@@ -5,8 +36,12 @@
 #include <ntddk.h>
 #include <windef.h>
 
-#include "module.h"
-#include "hook.h" // SYSTEM_INFORMATION_CLASS definition
+#include "hooking.h"
+
+/////////////////////////////////////////////////////////////////////////////
+// FUNCTIONS
+/////////////////////////////////////////////////////////////////////////////
+
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description : 
@@ -23,10 +58,7 @@
 //		Fill the requested structure
 //		Check the structure size requested with the one returned by ZwQuerySystemInformation
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PVOID QuerySystemInformation (
-	SYSTEM_INFORMATION_CLASS SystemInformationClass
-);
-
+PVOID QuerySystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInformationClass);
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description : 
@@ -44,45 +76,8 @@ PVOID QuerySystemInformation (
 //		Fill the requested structure
 //		Check the structure size requested with the one returned by ZwQueryInformationProcess
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PVOID 
-QueryProcessInformation (
-	IN HANDLE Process, 
-	IN PROCESSINFOCLASS ProcessInformationClass, 
-	IN DWORD ProcessInformationLength
-);
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Get the entire module information table from the current process
-//
-//	Parameters :
-//		Nothing
-//	Return value :
-//		PMODULE_INFORMATION_TABLE : 	A pointer to an allocated module information table
-//	Process :
-//		Wrapper around GetPebProcess, reads and store the result into a MODULE_INFORMATION_TABLE structure
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PMODULE_INFORMATION_TABLE
-QueryModuleInformationCurrentProcess (
-	VOID
-);
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description : 
-// 		Retrieve the entire PEB structure of the current process
-//
-//	Parameters :
-//	Return value :
-//		PPEB :		A pointer to the PEB structure of the current process, or NULL if error
-//	Process :
-//		Calls QueryProcessInformation with a ProcessBasicInformation class to retrieve a PROCESS_BASIC_INFORMATION pointer
-//		Read the PROCESS_BASIC_INFORMATION.PebAddress to retrieve the address of the PEB structure before returning it
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-PPEB
-GetPebCurrentProcess (
-	VOID
-);
+PVOID QueryProcessInformation(__in HANDLE Process, 
+							  __in PROCESSINFOCLASS ProcessInformationClass, 
+							  __in DWORD ProcessInformationLength);
 
 #endif

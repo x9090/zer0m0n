@@ -30,7 +30,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 #include "monitor.h"
-#include "main.h"
+#include "logs_dispatcher.h"
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //	Description :
@@ -67,13 +67,12 @@ int cleanMonitoredProcessList()
 //		Adds "pid" process in the monitored list and its associated socket id(starts monitoring this process).
 //	Parameters :
 //		_in_ ULONG new_pid : Process Identifier.
-//		_in_ int new_sock : socket associated with this pid
 //	Return value :
 //		int : 1 if no error was encountered, otherwise, returns -1.
 //	Process :
 //		Checks if the PID is not on the list. If not, add it to the linked list with its associated socket
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int startMonitoringProcess(ULONG new_pid, int new_sock)
+int startMonitoringProcess(ULONG new_pid)
 {
 	PMONITORED_PROCESS_ENTRY new_entry;
 	if(new_pid == 0)
@@ -87,7 +86,6 @@ int startMonitoringProcess(ULONG new_pid, int new_sock)
 		return -1;
 		
 	new_entry->pid = new_pid;
-	new_entry->g_sock = new_sock;
 	new_entry->flink = monitored_process_list;
 	monitored_process_list = new_entry;
 	
@@ -116,65 +114,6 @@ int isProcessMonitoredByPid(ULONG pid)
 	{
 		if(ptr->pid == pid)
 			return 0;	
-		ptr = (PMONITORED_PROCESS_ENTRY)(ptr->flink);
-	}
-	return -1;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Returns socket identifier associated with the pid given in parameter
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//	Return value :
-//		int : Socket Identifier
-//	Process :
-//		Walks through the linked list, returns the socket id if "pid" is found.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int getMonitoredProcessSocket(ULONG pid)
-{
-	PMONITORED_PROCESS_ENTRY ptr;
-
-	if(pid == 0)
-		return -1;
-
-	ptr = monitored_process_list;
-	while(ptr != NULL)
-	{
-		if(ptr->pid == pid)
-			return ptr->g_sock;
-		
-		ptr = (PMONITORED_PROCESS_ENTRY)(ptr->flink);
-	}
-	return -1;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Updates a PID-related socket
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//		_in_ int new_sock : Socket
-//	Return value :
-//		int : 0 if success, -1 if not.
-//	Process :
-//		Walks through the linked list, updates the socket if "pid" is found.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-int setMonitoredProcessSocket(ULONG pid, int new_sock)
-{
-	PMONITORED_PROCESS_ENTRY ptr;
-
-	if(pid == 0)
-		return -1;
-
-	ptr = monitored_process_list;
-	while(ptr != NULL)
-	{
-		if(ptr->pid == pid)
-		{
-			ptr->g_sock = new_sock;
-			return 0;
-		}
 		ptr = (PMONITORED_PROCESS_ENTRY)(ptr->flink);
 	}
 	return -1;

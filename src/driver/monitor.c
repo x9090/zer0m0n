@@ -1,8 +1,8 @@
 ////////////////////////////////////////////////////////////////////////////
 //
-//	zer0m0n DRIVER
+//	zer0m0n 
 //
-//  Copyright 2013 Conix Security, Nicolas Correia, Adrien Chevalier
+//  Copyright 2016 Adrien Chevalier, Nicolas Correia, Cyril Moreau
 //
 //  This file is part of zer0m0n.
 //
@@ -21,302 +21,296 @@
 //
 //
 //	File :		monitor.c
-//	Abstract :	Monitored processes list handling
-//	Revision : 	v1.0
-//	Author :	Adrien Chevalier & Nicolas Correia
-//	Email :		adrien.chevalier@conix.fr nicolas.correia@conix.fr
-//	Date :		2013-12-26	  
-//	Notes : 	
+//	Abstract :	Monitor function for zer0m0n 
+//	Revision : 	v1.1
+//	Author :	Adrien Chevalier, Nicolas Correia, Cyril Moreau
+//	Email :		contact.zer0m0n@gmail.com
+//	Date :		2016-07-05	  
 //
 /////////////////////////////////////////////////////////////////////////////
+
+#include "struct.h"
 #include "monitor.h"
 #include "main.h"
 
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Adds "pid" process in the monitored list (starts monitoring this process).
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
-//	Process :
-//		Checks if the PID is not on the list. If not, add it to the linked list.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS startMonitoringProcess(ULONG new_pid)
+NTSTATUS Init_LinkedLists()
 {
-	PMONITORED_PROCESS_ENTRY new_entry;
-	
+	PPROCESS_ENTRY pInitHideEntry = NULL;
+	PPROCESS_ENTRY pInitProcEntry = NULL;	
+	pMonitoredProcessListHead = NULL;
+	pHiddenProcessListHead = NULL;
+	pHandleListHead = NULL;
+
+	pInitHideEntry = AllocateProcessEntry(0);
+	if(pInitHideEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ":\tAllocation failed !\n");
+		return STATUS_NO_MEMORY;
+	}
+	pInitProcEntry = AllocateProcessEntry(0);
+	if(pInitProcEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ":\tAllocation failed !\n");
+		return STATUS_NO_MEMORY;
+	}
+
+	InitializeListHead(&pInitProcEntry->entry);            
+	pMonitoredProcessListHead = &pInitProcEntry->entry;
+	InitializeListHead(&pInitHideEntry->entry);            
+	pHiddenProcessListHead = &pInitHideEntry->entry;
+
+	return STATUS_SUCCESS;
+}
+
+PPROCESS_ENTRY AllocateProcessEntry(__in ULONG new_pid)
+{
+	PPROCESS_ENTRY pProcessEntry = NULL;
+
+	pProcessEntry = PoolAlloc(sizeof(PROCESS_ENTRY));
+	if(pProcessEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ": failed !\n");
+		return NULL;
+	}
+
+	pProcessEntry->pid = new_pid;
+
+	return pProcessEntry;
+}
+
+PHANDLE_ENTRY AllocateHandleEntry(__in HANDLE new_handle)
+{
+	PHANDLE_ENTRY pHandleEntry = NULL;
+
+	pHandleEntry = PoolAlloc(sizeof(HANDLE_ENTRY));
+	if(pHandleEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ": failed !\n"); 
+		return NULL;
+	}
+	pHandleEntry->handle = new_handle;
+
+	return pHandleEntry;
+}
+
+NTSTATUS StartMonitoringProcess(__in ULONG new_pid)
+{
+	PPROCESS_ENTRY pNewEntry = NULL;
+
 	if(new_pid == 0)
 		return STATUS_INVALID_PARAMETER;
-	if(isProcessMonitoredByPid(new_pid))
+
+	if(IsProcessInList(new_pid, pMonitoredProcessListHead))
+	{
+		Dbg(__FUNCTION__ ":\t%d deja dans la liste : %d\n", new_pid);
 		return STATUS_SUCCESS;
-	
-	new_entry = (PMONITORED_PROCESS_ENTRY)ExAllocatePoolWithTag(NonPagedPool,sizeof(MONITORED_PROCESS_ENTRY),MONIT_POOL_TAG);
-	if(new_entry == NULL)
+	}
+
+	pNewEntry = AllocateProcessEntry(new_pid);
+	if(pNewEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ":\tAllocation failed !\n");
 		return STATUS_NO_MEMORY;
-		
-	new_entry->pid = new_pid;
-	new_entry->flink = monitored_process_list;
-	monitored_process_list = new_entry;
-	#ifdef DEBUG
-	DbgPrint("New PID : %d\n",new_pid);
-	#endif
+	}	
+	InsertHeadList(pMonitoredProcessListHead, &pNewEntry->entry);        
 	return STATUS_SUCCESS;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Adds "pid" process in the hidden processes list.
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
-//	Process :
-//		Checks if the PID is not on the list. If not, add it to the linked list.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS addHiddenProcess(ULONG new_pid)
+NTSTATUS AddProcessToHideToList(__in ULONG new_pid)
 {
-	PHIDDEN_PROCESS new_entry;
+	PPROCESS_ENTRY pNewEntry = NULL;
+
 	if(new_pid == 0)
 		return STATUS_INVALID_PARAMETER;
-	if(isProcessHiddenByPid(new_pid))
+	if(IsProcessInList(new_pid, pHiddenProcessListHead))
+	{
+		Dbg(__FUNCTION__ "\t: process to hide %d deja dans la liste : %d\n", new_pid);
 		return STATUS_SUCCESS;
-
-	#ifdef DEBUG
-	DbgPrint("adding pid to hide : %d\n", new_pid);	
-	#endif
-	
-	new_entry = (PHIDDEN_PROCESS)ExAllocatePoolWithTag(NonPagedPool,sizeof(HIDDEN_PROCESS),MONIT_POOL_TAG);
-	if(new_entry == NULL)
+	}
+	pNewEntry = AllocateProcessEntry(new_pid);
+	if(pNewEntry == NULL)
+	{
+		Dbg(__FUNCTION__ "pNewEntry allocation failed !\n");
 		return STATUS_NO_MEMORY;
-		
-	new_entry->pid = new_pid;
-	new_entry->flink = hidden_process_list;
-	hidden_process_list = new_entry;
-	
+	}
+
+	InsertHeadList(pHiddenProcessListHead, &pNewEntry->entry);        
 	return STATUS_SUCCESS;
 }
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Adds "handle" Handle in the hidden processes list.
-//	Parameters :
-//		_in_ HANDLE handle : File Handle.
-//	Return value :
-//		NTSTATUS : STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
-//	Process :
-//		Checks if the handle is not on the list. If not, add it to the linked list.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS addHandleInMonitoredList(HANDLE handle)
+NTSTATUS AddHandleToList(__in HANDLE new_handle)
+{    
+	PHANDLE_ENTRY pNewEntry = NULL;
+
+	if(new_handle == 0)
+		return STATUS_INVALID_PARAMETER;
+	if(IsHandleInList(new_handle))
+	{
+		Dbg(__FUNCTION__ "\t: handle %d deja dans la liste : %d\n", new_handle);
+		return STATUS_SUCCESS;
+	}	
+
+	if(pHandleListHead == NULL)
+	{
+		pNewEntry = AllocateHandleEntry(0);
+		if(pNewEntry == NULL)
+		{
+			Dbg(__FUNCTION__ ": failed !\n");
+			return STATUS_NO_MEMORY;
+		}
+		InitializeListHead(&pNewEntry->entry);            
+		pHandleListHead = &pNewEntry->entry;
+	}
+
+	pNewEntry = AllocateHandleEntry(new_handle);
+	if(pNewEntry == NULL)
+	{
+		Dbg(__FUNCTION__ ": failed !\n");
+		return STATUS_NO_MEMORY;
+	}    
+	InsertHeadList(pHandleListHead, &pNewEntry->entry);        
+	return STATUS_SUCCESS;
+}
+
+NTSTATUS RemoveHandleFromList(__in HANDLE handle)
 {
-	PHANDLE_TO_MONITOR new_entry;
+	PLIST_ENTRY pListEntry = NULL;
+	PHANDLE_ENTRY pCurEntry = NULL;
+
 	if(handle == 0)
 		return STATUS_INVALID_PARAMETER;
-	if(isHandleInMonitoredList(handle))
+
+	if(!IsHandleInList(handle))
 		return STATUS_SUCCESS;
 
-	#ifdef DEBUG
-	DbgPrint("adding handle in monitored list : %d\n", handle);	
-	#endif
-	
-	new_entry = (PHANDLE_TO_MONITOR)ExAllocatePoolWithTag(NonPagedPool,sizeof(HANDLE_TO_MONITOR),MONIT_POOL_TAG);
-	if(new_entry == NULL)
-		return STATUS_NO_MEMORY;
-		
-	new_entry->handle = handle;
-	new_entry->flink = monitored_handle_list;
-	monitored_handle_list = new_entry;
-	
-	return STATUS_SUCCESS;
-}
-
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Removes "handle" from the monitored list (stops monitoring this handle).
-//	Parameters :
-//		_in_ HANDLE handle : File Handle.
-//	Return value :
-//		NTSTATUS :  STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.
-//	Process :
-//		Checks if the handle is on the list. If yes, remove it.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS removeHandleInMonitoredList(HANDLE handle)
-{
-	PHANDLE_TO_MONITOR currentMember, prevMember;
-	if(handle == 0)
-		return STATUS_INVALID_PARAMETER;
-		
-	prevMember = NULL;
-	currentMember = monitored_handle_list;
-	while(currentMember != NULL)
+	pListEntry = pHandleListHead->Flink;
+	do
 	{
-		if(currentMember->handle == handle)
+		pCurEntry = (PHANDLE_ENTRY) CONTAINING_RECORD(pListEntry, HANDLE_ENTRY, entry);
+		if(pCurEntry->handle == handle)
 		{
-			if(prevMember == NULL)
-			{
-				monitored_handle_list = (PHANDLE_TO_MONITOR)(currentMember->flink);
-				//ExFreePoolWithTag(prevMember,MONIT_POOL_TAG);
-				currentMember = monitored_handle_list;
-			}
-			else
-			{
-				prevMember->flink = currentMember->flink;
-				//ExFreePoolWithTag(currentMember,MONIT_POOL_TAG);
-				currentMember = (PHANDLE_TO_MONITOR)(prevMember->flink);
-			}
+			RemoveEntryList(&pCurEntry->entry);
+			return STATUS_SUCCESS; 
 		}
-		else
+
+		pListEntry = pListEntry->Flink;
+	}
+	while(pListEntry != pHandleListHead);
+
+	return STATUS_SUCCESS;
+
+}
+
+BOOLEAN IsProcessInList(__in ULONG pid, 
+		__in PLIST_ENTRY pListHead)
+{
+
+	PLIST_ENTRY pListEntry = NULL;
+	PPROCESS_ENTRY pCurEntry = NULL;
+
+	if(pListHead == NULL)
+		return FALSE;
+
+	if(IsListEmpty(pListHead))
+		return FALSE;
+
+	pListEntry = pListHead->Flink;
+	do
+	{
+		pCurEntry = CONTAINING_RECORD(pListEntry, PROCESS_ENTRY, entry);
+		if(pCurEntry->pid == pid)
+			return TRUE;
+
+		pListEntry = pListEntry->Flink;   
+	} 
+	while(pListEntry != pListHead);
+
+	return FALSE;
+}
+
+BOOLEAN IsHandleInList(__in HANDLE handle)
+{
+	PLIST_ENTRY pListEntry = NULL;
+	PHANDLE_ENTRY pCurEntry = NULL;
+
+	if(pHandleListHead == NULL)
+		return FALSE;
+
+	if(IsListEmpty(pHandleListHead))
+		return FALSE;
+
+	pListEntry = pHandleListHead->Flink;
+
+	do
+	{
+		pCurEntry = (PHANDLE_ENTRY)CONTAINING_RECORD(pListEntry, HANDLE_ENTRY, entry);
+		if(pCurEntry->handle == handle)
+			return TRUE;
+
+		pListEntry = pListEntry->Flink;   
+	}
+	while(pListEntry != pHandleListHead);
+
+	return FALSE;
+}
+
+
+VOID FreeList()
+{
+	PLIST_ENTRY pListEntry = NULL; 
+	PLIST_ENTRY pNextEntry = NULL;
+	PPROCESS_ENTRY pCurProcEntry = NULL;
+	PHANDLE_ENTRY pCurHandleEntry = NULL;
+
+	if(pMonitoredProcessListHead != NULL)
+	{
+		if(!IsListEmpty(pMonitoredProcessListHead))
 		{
-			prevMember = currentMember;
-			currentMember = (PHANDLE_TO_MONITOR)(currentMember->flink);
+			pListEntry = pMonitoredProcessListHead->Flink;
+			do
+			{
+				pCurProcEntry = (PPROCESS_ENTRY)CONTAINING_RECORD(pListEntry, PROCESS_ENTRY, entry);
+				pNextEntry = pListEntry->Flink;
+				ExFreePool(pCurProcEntry);
+				pListEntry = pNextEntry;
+			}
+			while(pListEntry != pMonitoredProcessListHead);
+			pMonitoredProcessListHead = NULL;
 		}
 	}
-	return STATUS_SUCCESS;
-}
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Removes all of the monitored list entries (stops monitoring).
-//	Parameters :
-//		None
-//	Return value :
-//		NTSTATUS :  STATUS_SUCCESS if no error was encountered, otherwise, relevant NTSTATUS code.	
-//	Process :
-//		Walks through the linked list and removes each entry.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS cleanMonitoredProcessList()
-{
-	PMONITORED_PROCESS_ENTRY currentMember, tempMember;
-	
-	if(monitored_process_list == NULL)
-		return STATUS_SUCCESS;
-	
-	currentMember = monitored_process_list;
-	tempMember = NULL;
-	while(currentMember != NULL)
+	if(pHiddenProcessListHead != NULL)
 	{
-		tempMember = currentMember;
-		currentMember = (PMONITORED_PROCESS_ENTRY)(currentMember->flink);
-		ExFreePoolWithTag(tempMember,MONIT_POOL_TAG);
+		if(!IsListEmpty(pHiddenProcessListHead))
+		{
+			pListEntry = pHiddenProcessListHead->Flink;
+			do
+			{
+				pCurProcEntry = (PPROCESS_ENTRY)CONTAINING_RECORD(pListEntry, PROCESS_ENTRY, entry);
+				pNextEntry = pListEntry->Flink;
+				ExFreePool(pCurProcEntry);
+				pListEntry = pNextEntry;
+			}
+			while(pListEntry != pHiddenProcessListHead);
+			pHiddenProcessListHead = NULL;
+		}
 	}
-	
-	monitored_process_list = NULL;
-	return STATUS_SUCCESS;
-}
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Removes all of the hidden processes list entries.
-//	Parameters :
-//		None
-//	Return value :
-//	Process :
-//		Walks through the linked list and removes each entry.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-NTSTATUS cleanHiddenProcessList()
-{
-	PHIDDEN_PROCESS currentMember, tempMember;
-	
-	if(hidden_process_list == NULL)
-		return STATUS_SUCCESS;
-	
-	currentMember = hidden_process_list;
-	tempMember = NULL;
-	while(currentMember != NULL)
+	if(pHandleListHead != NULL)
 	{
-		tempMember = currentMember;
-		currentMember = (PHIDDEN_PROCESS)(currentMember->flink);
-		ExFreePoolWithTag(tempMember,MONIT_POOL_TAG);
-	}
-	
-	hidden_process_list = NULL;
-	return STATUS_SUCCESS;
-}
+		if(!IsListEmpty(pHandleListHead))
+		{
+			pListEntry = pHandleListHead->Flink;
+			do
+			{
+				pCurProcEntry = (PPROCESS_ENTRY)CONTAINING_RECORD(pListEntry, HANDLE_ENTRY, entry);
+				pNextEntry = pListEntry->Flink;
+				ExFreePool(pCurProcEntry);
+				pListEntry = pNextEntry;
+			}
+			while(pListEntry != pHandleListHead);
+			pHandleListHead = NULL;
+		}
 
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Returns TRUE if pid is in the monitored list (if it is actually monitored).
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//	Return value :
-//		BOOLEAN : TRUE if found, FALSE if not.
-//	Process :
-//		Walks through the linked list, eturns TRUE if "pid" is found.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOLEAN isProcessMonitoredByPid(ULONG pid)
-{
-	PMONITORED_PROCESS_ENTRY ptr;
-	if(pid == 0)
-		return FALSE;
-		
-	ptr = monitored_process_list;
-	while(ptr != NULL)
-	{
-		if(ptr->pid == pid)
-			return TRUE;
-		
-		ptr = (PMONITORED_PROCESS_ENTRY)(ptr->flink);
 	}
-	
-	return FALSE;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Returns TRUE if pid is in the hidden processes list.
-//	Parameters :
-//		_in_ ULONG pid : Process Identifier.
-//	Return value :
-//		BOOLEAN : TRUE if found, FALSE if not.
-//	Process :
-//		Walks through the linked list, returns TRUE if "pid" is found.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOLEAN isProcessHiddenByPid(ULONG pid)
-{
-	PHIDDEN_PROCESS ptr;
-	
-	if(pid == 0)
-		return FALSE;
-		
-	ptr = hidden_process_list;
-	while(ptr != NULL)
-	{
-		if(ptr->pid == pid)
-			return TRUE;
-		
-		ptr = (PHIDDEN_PROCESS)(ptr->flink);
-	}
-	
-	return FALSE;
-}
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//	Description :
-//		Returns TRUE if handle is in the handle list to monitor.
-//	Parameters :
-//		_in_ HANDLE handle : File Handle.
-//	Return value :
-//		BOOLEAN : TRUE if found, FALSE if not.
-//	Process :
-//		Walks through the linked list, returns TRUE if "handle" is found.
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////
-BOOLEAN isHandleInMonitoredList(HANDLE handle)
-{
-	PHANDLE_TO_MONITOR ptr;
-	
-	if(handle == 0)
-		return FALSE;
-		
-	ptr = monitored_handle_list;
-	while(ptr != NULL)
-	{
-		if(ptr->handle == handle)
-			return TRUE;
-		
-		ptr = (PHANDLE_TO_MONITOR)(ptr->flink);
-	}
-	
-	return FALSE;
 }

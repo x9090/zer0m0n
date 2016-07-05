@@ -1,6 +1,6 @@
 /*
-Cuckoo Sandbox - Automated Malware Analysis
-Copyright (C) 2010-2013 Cuckoo Sandbox Developers
+Cuckoo Sandbox - Automated Malware Analysis.
+Copyright (C) 2010-2015 Cuckoo Foundation.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -17,243 +17,314 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #include <stdio.h>
+#include <stdint.h>
+#include <winsock2.h>
 #include <windows.h>
-#include <ctype.h>
 #include <shlwapi.h>
+#include "bson/bson.h"
+#include "hooking.h"
+#include "ignore.h"
+#include "log.h"
+#include "memory.h"
 #include "misc.h"
+#include "native.h"
+#include "ntapi.h"
+#include "pipe.h"
+#include "sha1.h"
+#include "symbol.h"
+
+static char g_shutdown_mutex[MAX_PATH];
+static array_t g_unicode_buffer_ptr_array;
+static array_t g_unicode_buffer_use_array;
+
+static uintptr_t g_monitor_start;
+static uintptr_t g_monitor_end;
+
+static monitor_hook_t g_hook_library;
+
+#define HKCU_PREFIX  L"\\REGISTRY\\USER\\S-1-5-"
+#define HKCU_PREFIX2 L"HKEY_USERS\\S-1-5-"
+#define HKLM_PREFIX  L"\\REGISTRY\\MACHINE"
+
+static wchar_t g_aliases[64][2][MAX_PATH];
+static uint32_t g_alias_index;
+
+uint32_t g_monitor_track = 1;
+uint32_t g_monitor_mode = HOOK_MODE_ALL;
+
+#define ADD_ALIAS(before, after) \
+    if(g_alias_index == 64) { \
+        pipe("CRITICAL:Too many aliases!"); \
+        exit(1); \
+    } \
+    wcscpy(g_aliases[g_alias_index][0], before); \
+    wcscpy(g_aliases[g_alias_index][1], after); \
+    g_alias_index++;
 
 
-ULONG_PTR parent_process_id() // By Napalm @ NetCore2K (rohitab.com)
+uint32_t parent_process_identifier(int pid)
 {
-    ULONG_PTR pbi[6]; ULONG ulSize = 0;
-    LONG (WINAPI *NtQueryInformationProcess)(HANDLE ProcessHandle,
-        ULONG ProcessInformationClass, PVOID ProcessInformation,
-        ULONG ProcessInformationLength, PULONG ReturnLength);
-
-    *(FARPROC *) &NtQueryInformationProcess = GetProcAddress(
-        GetModuleHandle("ntdll"), "NtQueryInformationProcess");
-
-    if(NtQueryInformationProcess != NULL && NtQueryInformationProcess(
-            GetCurrentProcess(), 0, &pbi, sizeof(pbi), &ulSize) >= 0 &&
-            ulSize == sizeof(pbi)) {
-        return pbi[5];
-    }
     return 0;
 }
 
-DWORD pid_from_process_handle(HANDLE process_handle)
+
+void wcsncpyA(wchar_t *dst, const char *src, uint32_t length)
 {
-    PROCESS_BASIC_INFORMATION pbi;
-	ULONG ulSize;
-    LONG (WINAPI *NtQueryInformationProcess)(HANDLE ProcessHandle,
-        ULONG ProcessInformationClass, PVOID ProcessInformation,
-        ULONG ProcessInformationLength, PULONG ReturnLength);
-
-    *(FARPROC *) &NtQueryInformationProcess = GetProcAddress(
-        GetModuleHandle("ntdll"), "NtQueryInformationProcess");
-
-    if(NtQueryInformationProcess != NULL && NtQueryInformationProcess(
-            process_handle, 0, &pbi, sizeof(pbi), &ulSize) >= 0 &&
-            ulSize == sizeof(pbi)) {
-        return pbi.UniqueProcessId;
+    while (*src != 0 && length > 1) {
+        *dst++ = *src++, length--;
     }
-    return 0;
+    *dst = 0;
 }
 
-DWORD pid_from_thread_handle(HANDLE thread_handle)
+
+void *memdup(const void *addr, uint32_t length)
 {
-    THREAD_BASIC_INFORMATION tbi;
-	ULONG ulSize;
-    LONG (WINAPI *NtQueryInformationThread)(HANDLE ThreadHandle,
-        ULONG ThreadInformationClass, PVOID ThreadInformation,
-        ULONG ThreadInformationLength, PULONG ReturnLength);
-
-    *(FARPROC *) &NtQueryInformationThread = GetProcAddress(
-        GetModuleHandle("ntdll"), "NtQueryInformationThread");
-
-    if(NtQueryInformationThread != NULL && NtQueryInformationThread(
-            thread_handle, 0, &tbi, sizeof(tbi), &ulSize) >= 0 &&
-            ulSize == sizeof(tbi)) {
-        return (DWORD) tbi.ClientId.UniqueProcess;
+    if(addr != NULL && length != 0) {
+        void *ret = mem_alloc(length);
+        if(ret != NULL) {
+            memcpy(ret, addr, length);
+            return ret;
+        }
     }
-    return 0;
+    return NULL;
 }
 
-DWORD random()
+wchar_t *wcsdup(const wchar_t *s)
 {
-    static BOOLEAN (WINAPI *pRtlGenRandom)(PVOID RandomBuffer,
-        ULONG RandomBufferLength);
-
-	DWORD ret;
-
-    if(pRtlGenRandom == NULL) {
-        *(FARPROC *) &pRtlGenRandom = GetProcAddress(
-            GetModuleHandle("advapi32"), "SystemFunction036");
+    if(s != NULL) {
+        return memdup(s, (lstrlenW(s) + 1) * sizeof(wchar_t));
     }
-
-    return pRtlGenRandom(&ret, sizeof(ret)) ? ret : rand();
+    return NULL;
 }
 
-DWORD randint(DWORD min, DWORD max)
+void clsid_to_string(REFCLSID rclsid, char *buf)
 {
-    return min + (random() % (max - min + 1));
+    const uint8_t *ptr = (const uint8_t *) rclsid;
+
+    our_snprintf(buf, 64, "{%x%x%x%x-%x%x-%x%x-%x%x-%x%x%x%x%x%x}",
+        ptr[3], ptr[2], ptr[1], ptr[0], ptr[5], ptr[4], ptr[7], ptr[6],
+        ptr[8], ptr[9], ptr[10], ptr[11], ptr[12], ptr[13], ptr[14], ptr[15]);
 }
 
-BOOL is_directory_objattr(const OBJECT_ATTRIBUTES *obj)
+void wsabuf_get_buffer(uint32_t buffer_count, const WSABUF *buffers,
+    uint8_t **ptr, uintptr_t *length)
 {
-    static NTSTATUS (WINAPI *pNtQueryAttributesFile)(
-        _In_   const OBJECT_ATTRIBUTES *ObjectAttributes,
-        _Out_  PFILE_BASIC_INFORMATION FileInformation
-    );
-	
-    FILE_BASIC_INFORMATION basic_information;
-
-    if(pNtQueryAttributesFile == NULL) {
-        *(FARPROC *) &pNtQueryAttributesFile = GetProcAddress(
-            GetModuleHandle("ntdll"), "NtQueryAttributesFile");
+    *length = 0;
+    for (uint32_t idx = 0; idx < buffer_count; idx++) {
+        *length += buffers[idx].len;
     }
 
-    if(!(pNtQueryAttributesFile(obj, &basic_information))) {
-        return basic_information.FileAttributes & FILE_ATTRIBUTE_DIRECTORY;
-    }
-    return FALSE;
-}
-
-// hide our module from PEB
-// http://www.openrce.org/blog/view/844/How_to_hide_dll
-
-#define CUT_LIST(item) \
-    item.Blink->Flink = item.Flink; \
-    item.Flink->Blink = item.Blink
-/*
-void hide_module_from_peb(HMODULE module_handle)
-{
-    LDR_MODULE *mod; PEB *peb = (PEB *) __readfsdword(0x30);
-
-    for (mod = (LDR_MODULE *) peb->LoaderData->InLoadOrderModuleList.Flink;
-         mod->BaseAddress != NULL;
-         mod = (LDR_MODULE *) mod->InLoadOrderModuleList.Flink) {
-
-        if(mod->BaseAddress == module_handle) {
-            CUT_LIST(mod->InLoadOrderModuleList);
-            CUT_LIST(mod->InInitializationOrderModuleList);
-            CUT_LIST(mod->InMemoryOrderModuleList);
-
-            // TODO test whether this list is really used as a linked list
-            // like InLoadOrderModuleList etc
-            CUT_LIST(mod->HashTableEntry);
-
-            memset(mod, 0, sizeof(LDR_MODULE));
-            break;
+    *ptr = (uint8_t *) mem_alloc(*length);
+    if(*ptr != NULL) {
+        for (uint32_t idx = 0, offset = 0; idx < buffer_count; idx++) {
+            if(buffers[idx].buf != NULL && buffers[idx].len != 0) {
+                memcpy(&(*ptr)[offset], buffers[idx].buf, buffers[idx].len);
+                offset += buffers[idx].len;
+            }
         }
     }
 }
-*/
-int path_from_handle(HANDLE handle, wchar_t *path)
+
+uint64_t hash_buffer(const void *buf, uint32_t length)
 {
-	FILE_FS_VOLUME_INFORMATION volume_information;
-	IO_STATUS_BLOCK status;
-	unsigned char buf[FILE_NAME_INFORMATION_REQUIRED_SIZE];
-    FILE_NAME_INFORMATION *name_information = (FILE_NAME_INFORMATION *) buf;
-	unsigned long serial_number;
-	int length; 
-
-	static NTSTATUS (WINAPI *pNtQueryVolumeInformationFile)(
-        _In_   HANDLE FileHandle,
-        _Out_  PIO_STATUS_BLOCK IoStatusBlock,
-        _Out_  PVOID FsInformation,
-        _In_   ULONG Length,
-        _In_   FS_INFORMATION_CLASS FsInformationClass
-    );
-	static NTSTATUS (WINAPI *pNtQueryInformationFile)(
-        _In_   HANDLE FileHandle,
-        _Out_  PIO_STATUS_BLOCK IoStatusBlock,
-        _Out_  PVOID FileInformation,
-        _In_   ULONG Length,
-        _In_   FILE_INFORMATION_CLASS FileInformationClass
-    );
-  
-	if(pNtQueryVolumeInformationFile == NULL) {
-        *(FARPROC *) &pNtQueryVolumeInformationFile = GetProcAddress(
-            GetModuleHandle("ntdll"), "NtQueryVolumeInformationFile");
-    }
-
-    if(pNtQueryInformationFile == NULL) {
-        *(FARPROC *) &pNtQueryInformationFile = GetProcAddress(
-            GetModuleHandle("ntdll"), "NtQueryInformationFile");
-    }
-
-    // get the volume serial number of the directory handle
-    if(NT_SUCCESS(pNtQueryVolumeInformationFile(handle, &status,
-            &volume_information, sizeof(volume_information),
-            FileFsVolumeInformation)) == 0) {
+    if(buf == NULL || length == 0) {
         return 0;
     }
 
-    // enumerate all harddisks in order to find the
-    // corresponding serial number
-    wcscpy(path, L"?:\\");
-    for (path[0] = 'A'; path[0] <= 'Z'; path[0]++) {
-        if(GetVolumeInformationW(path, NULL, 0, &serial_number, NULL,
-                NULL, NULL, 0) == 0 ||
-                serial_number != volume_information.VolumeSerialNumber) {
+    const uint8_t *p = (const uint8_t *) buf;
+    uint64_t ret = *p << 7;
+    for (uint32_t idx = 0; idx < length; idx++) {
+        ret = (ret * 1000003) ^ *p++;
+    }
+    return ret ^ length;
+}
+
+uint64_t hash_string(const char *buf, int32_t length)
+{
+    if(buf == NULL || length == 0) {
+        return 0;
+    }
+
+    if(length < 0) {
+        length = strlen(buf);
+    }
+
+    uint64_t ret = *buf << 7;
+    for (int32_t idx = 0; idx < length; idx++) {
+        ret = (ret * 1000003) ^ (uint8_t) *buf++;
+    }
+    return ret ^ length;
+}
+
+uint64_t hash_stringW(const wchar_t *buf, int32_t length)
+{
+    if(buf == NULL || length == 0) {
+        return 0;
+    }
+
+    if(length < 0) {
+        length = lstrlenW(buf);
+    }
+
+    uint64_t ret = *buf << 7;
+    for (int32_t idx = 0; idx < length; idx++) {
+        ret = (ret * 1000003) ^ (uint16_t) *buf++;
+    }
+    return ret ^ length;
+}
+
+uint64_t hash_uint64(uint64_t value)
+{
+    return hash_buffer(&value, sizeof(value));
+}
+
+// http://stackoverflow.com/questions/9655202/how-to-convert-integer-to-string-in-c
+int ultostr(intptr_t value, char *str, int base)
+{
+    const char charset[] = "0123456789abcdef"; int length = 0;
+
+    // Negative values.
+    if(value < 0 && base == 10) {
+        *str++ = '-', length++;
+        value = -value;
+    }
+
+    // Calculate the amount of numbers required.
+    uintptr_t shifter = value, uvalue = value;
+    do {
+        str++, length++, shifter /= base;
+    } while (shifter);
+
+    // Populate the string.
+    *str = 0;
+    do {
+        *--str = charset[uvalue % base];
+        uvalue /= base;
+    } while (uvalue);
+    return length;
+}
+
+static uintptr_t _min(uintptr_t a, uintptr_t b)
+{
+    return a < b ? a : b;
+}
+
+int our_vsnprintf(char *buf, int length, const char *fmt, va_list args)
+{
+    const char *base = buf;
+    for (; *fmt != 0 && length > 1; fmt++) {
+        if(*fmt != '%') {
+            *buf++ = *fmt, length--;
             continue;
         }
 
-        // obtain the relative path for this filename on the given harddisk
-        if(NT_SUCCESS(pNtQueryInformationFile(handle, &status,
-                name_information, FILE_NAME_INFORMATION_REQUIRED_SIZE,
-                FileNameInformation))) {
+        const char *s; char tmp[32]; uintptr_t p; intptr_t v, l;
 
-            length = name_information->FileNameLength / sizeof(wchar_t);
+        switch (*++fmt) {
+        case 's':
+            s = va_arg(args, const char *);
+            strncpy(buf, s, length-1);
+            l = _min(length-1, strlen(s));
+            buf += l, length -= l;
+            break;
 
-            // NtQueryInformationFile omits the "C:" part in a
-            // filename, apparently
-            wcsncpy(path + 2, name_information->FileName, length);
-            path[2 + length] = 0;
-            return 2 + length;
+        case 'p':
+            p = va_arg(args, uintptr_t);
+            if(length > 10) {
+                *buf++ = '0', *buf++ = 'x';
+                l = ultostr(p, buf, 16);
+                length -= 2 + l, buf += l;
+            }
+            break;
+
+        case 'x':
+            p = va_arg(args, uint32_t);
+            if(length > 8) {
+                l = ultostr(p, buf, 16);
+                // Prepend a single '0' if uneven.
+                if((l & 1) != 0) {
+                    *buf++ = '0', length--;
+                    l = ultostr(p, buf, 16);
+                }
+                length -= l, buf += l;
+            }
+            break;
+
+        case 'd':
+            v = va_arg(args, int32_t);
+            l = ultostr(v >= 0 ? v : -v, tmp, 10);
+            if(length > l + (v < 0)) {
+                if(v < 0) {
+                    v = -v, *buf++ = '-', length--;
+                }
+                l = ultostr(v, buf, 10);
+                length -= l, buf += l;
+            }
+            break;
+
+        default:
+            dpipe("CRITICAL:Unhandled vsnprintf modifier: %s", 4, fmt);
+        }
+    }
+    *buf = 0;
+    return buf - base;
+}
+
+int our_snprintf(char *buf, int length, const char *fmt, ...)
+{
+    va_list args;
+    va_start(args, fmt);
+
+    int ret = our_vsnprintf(buf, length, fmt, args);
+
+    va_end(args);
+    return ret;
+}
+
+int our_memcmp(const void *a, const void *b, uint32_t length)
+{
+    const uint8_t *_a = (const uint8_t *) a, *_b = (const uint8_t *) b;
+    for (; length != 0; _a++, _b++, length--) {
+        if(*_a != *_b) {
+            return *_a - *_b;
         }
     }
     return 0;
 }
 
-int path_from_object_attributes(const OBJECT_ATTRIBUTES *obj, wchar_t *path)
+uint32_t our_strlen(const char *s)
 {
-	int len;
-    if(obj->RootDirectory == NULL) {
-        wcsncpy(path, obj->ObjectName->Buffer, obj->ObjectName->Length);
-        path[obj->ObjectName->Length / sizeof(wchar_t)] = 0;
-        return obj->ObjectName->Length / sizeof(wchar_t);
+    uint32_t ret = 0;
+    while (*s != 0) {
+        ret++, s++;
     }
-
-    len = path_from_handle(obj->RootDirectory, path);
-    path[len++] = L'\\';
-    wcsncpy(&path[len], obj->ObjectName->Buffer,
-        obj->ObjectName->Length / sizeof(wchar_t));
-    path[len + obj->ObjectName->Length / sizeof(wchar_t)] = 0;
-    return len + obj->ObjectName->Length / sizeof(wchar_t);
+    return ret;
 }
 
-int ensure_absolute_path(wchar_t *out, const wchar_t *in, int length)
+void hexencode(char *dst, const uint8_t *src, uint32_t length)
 {
-    if(!wcsncmp(in, L"\\??\\", 4)) {
-        length -= 4, in += 4;
-        wcsncpy(out, in, length < MAX_PATH ? length : MAX_PATH);
-        return out[length] = 0, length;
+    static const char charset[] = "0123456789abcdef";
+    for (; length != 0; src++, length--) {
+        *dst++ = charset[*src >> 4];
+        *dst++ = charset[*src & 15];
     }
-    else if(in[1] != ':' || (in[2] != '\\' && in[2] != '/')) {
-        wchar_t cur_dir[MAX_PATH], fname[MAX_PATH];
-        GetCurrentDirectoryW(ARRAYSIZE(cur_dir), cur_dir);
+    *dst = 0;
+}
 
-        // ensure the filename is zero-terminated
-        wcsncpy(fname, in, length < MAX_PATH ? length : MAX_PATH);
-        fname[length] = 0;
+void sha1(const void *buffer, uintptr_t buflen, char *hexdigest)
+{
+    SHA1Context ctx;
+    SHA1Reset(&ctx);
+    SHA1Input(&ctx, buffer, buflen);
+    SHA1Result(&ctx);
 
-        PathCombineW(out, cur_dir, fname);
-        return lstrlenW(out);
-    }
-    else {
-        wcsncpy(out, in, length < MAX_PATH ? length : MAX_PATH);
-        return out[length] = 0, length;
+    const uint32_t *digest = (const uint32_t *) ctx.Message_Digest;
+    for (uint32_t idx = 0; idx < 5; idx++) {
+        // TODO Our custom snprintf doesn't have proper %08x support yet.
+        hexdigest += our_snprintf(hexdigest, 32, "%x%x%x%x",
+            (digest[idx] >> 24) & 0xff,
+            (digest[idx] >> 16) & 0xff,
+            (digest[idx] >>  8) & 0xff,
+            (digest[idx] >>  0) & 0xff);
     }
 }
