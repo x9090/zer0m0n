@@ -73,8 +73,8 @@ NTSTATUS InitMinifilter(__in PDRIVER_OBJECT pDriverObject)
 
 	InitializeObjectAttributes(&objAttr, &fltPortName, OBJ_KERNEL_HANDLE | OBJ_CASE_INSENSITIVE, NULL, pSecurityDesc);
 
-	status = FltCreateCommunicationPort(fltFilter, &fltServerPort, &objAttr, NULL, FltConnectCallback, 
-			FltDisconnectCallback, NULL, FLT_MAX_CONNECTIONS);
+	status = FltCreateCommunicationPort(fltFilter, &fltServerPort, &objAttr, NULL, FltConnectCallback, FltDisconnectCallback, NULL, FLT_MAX_CONNECTIONS);
+
 	FltFreeSecurityDescriptor(pSecurityDesc);    
 	if(!NT_SUCCESS(status))
 		return status;
@@ -89,6 +89,11 @@ NTSTATUS FltConnectCallback(__in PFLT_PORT ClientPort,
 							__in ULONG SizeOfContext, 
 							__out PVOID *ConnectionPortCookie)
 {
+	UNREFERENCED_PARAMETER(ConnectionPortCookie);
+	UNREFERENCED_PARAMETER(SizeOfContext);
+	UNREFERENCED_PARAMETER(ServerPortCookie);
+	UNREFERENCED_PARAMETER(ConnectionContext);
+
 	if(ClientPort == NULL)
 		return STATUS_INVALID_PARAMETER;
 
@@ -98,6 +103,7 @@ NTSTATUS FltConnectCallback(__in PFLT_PORT ClientPort,
 
 VOID FltDisconnectCallback(__in PVOID ConnectionCookie)
 {
+	UNREFERENCED_PARAMETER(ConnectionCookie);
 }
 
 NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
@@ -160,12 +166,15 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 NTSTATUS Ioctl_NotSupported(__in PDEVICE_OBJECT pDeviceObject,
 							__in PIRP pIrp)
 {
+	UNREFERENCED_PARAMETER(pDeviceObject);
+	UNREFERENCED_PARAMETER(pIrp);
 	return STATUS_NOT_SUPPORTED;
 }
 
 
 NTSTATUS FltUnregister(__in FLT_FILTER_UNLOAD_FLAGS flags)
 {
+	UNREFERENCED_PARAMETER(flags);
 	FltCloseCommunicationPort(fltServerPort);
 
 	if(fltFilter != NULL)

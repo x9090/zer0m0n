@@ -612,6 +612,9 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 	
 	PAGED_CODE();
 	
+	RtlSecureZeroMemory(&kObjectName, sizeof(UNICODE_STRING));
+	RtlSecureZeroMemory(&file_to_dump, sizeof(UNICODE_STRING));
+
 	currentProcessId = (ULONG)PsGetCurrentProcessId();
 		
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
@@ -656,7 +659,7 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 		
 		// dump file
 		// we need to move the file straight away (:
-		if(kObjectName.Buffer)
+		if (kObjectName.Buffer)
 		{
 			file_to_dump.Length = 0;
 			file_to_dump.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
@@ -687,6 +690,8 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 	return Orig_NtDeleteFile(ObjectAttributes);
 }
 
+#pragma warning(push)
+#pragma warning(disable: 4702)
 NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 						   __in_opt HANDLE Event,
 						   __in_opt PIO_APC_ROUTINE ApcRoutine,
@@ -777,6 +782,7 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 	}
 	return statusCall;			
 }
+#pragma warning(pop)
 
 NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle, 
 							 __in ACCESS_MASK DesiredAccess, 
@@ -917,6 +923,8 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 	return statusCall;
 }
 
+#pragma warning(push)
+#pragma warning(disable: 4702)
 NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle, 
 							__in_opt HANDLE Event, 
 							__in_opt PIO_APC_ROUTINE ApcRoutine, 
@@ -939,7 +947,7 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 	PAGED_CODE();
 
 	currentProcessId = (ULONG)PsGetCurrentProcessId();
-	statusCall = Orig_NtWriteFile(FileHandle, Event, ApcRoutine, ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key);
+	statusCall = Orig_NtWriteFile(FileHandle, Event, (PVOID)ApcRoutine, (PVOID)ApcContext, IoStatusBlock, Buffer, Length, ByteOffset, Key);
 	
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
@@ -1008,3 +1016,4 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 	}
 	return statusCall;
 }
+#pragma warning(pop)

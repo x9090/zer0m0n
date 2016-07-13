@@ -40,6 +40,7 @@
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 					__in PUNICODE_STRING pRegistryPath)
 {
+	UNREFERENCED_PARAMETER(pRegistryPath);
 	NTSTATUS status = STATUS_SUCCESS;
 	UNICODE_STRING usDriverName;
 	PDEVICE_OBJECT pDeviceObject;

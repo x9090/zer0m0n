@@ -859,6 +859,8 @@ NTSTATUS Hooked_NtOpenProcess(__out PHANDLE ProcessHandle,
 	return statusCall;	
 }
 
+#pragma warning(push)
+#pragma warning(disable: 4702)
 NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 								   __in HANDLE ProcessHandle,
 								   __inout PVOID *BaseAddress,
@@ -971,7 +973,7 @@ NTSTATUS Hooked_NtMapViewOfSection(__in HANDLE SectionHandle,
 	}
 	return statusCall;		
 }
-
+#pragma warning(pop)
 
 NTSTATUS Hooked_NtReadVirtualMemory(__in HANDLE ProcessHandle,
 									__in PVOID BaseAddress,
