@@ -71,7 +71,7 @@ int main(void)
 	context.completion = CreateIoCompletionPort(context.hPort, NULL, 0, NUMBER_OF_THREADS);
 	if(context.completion == NULL)
 	{
-		fprintf(stderr, "[-] Error creating completion port : %d\n", GetLastError());
+		fprintf(stderr, "[-] Error creating completion port : %d\n", (int)GetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -88,7 +88,7 @@ int main(void)
 	
 	if(WaitForMultipleObjects(NUMBER_OF_THREADS, hThreads, TRUE, INFINITE) == WAIT_FAILED)
 	{
-		fprintf(stderr, "[-] Failed to wait for threads : %x\n", GetLastError());
+		fprintf(stderr, "[-] Failed to wait for threads : %x\n", (int)GetLastError());
 		exit(EXIT_FAILURE);
 	}
 
@@ -114,6 +114,7 @@ int main(void)
 //              monitored processes list along with a new socket, which will be used for this PID.
 //              Logs are parsed, then directly sent to the Cuckoo host.
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
+#define ERROR_ABANDONED_WAIT_0           735L
 VOID parse_logs(PTHREAD_CONTEXT p)
 {
 	config_t cfg;

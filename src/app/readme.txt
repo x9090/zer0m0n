@@ -1,0 +1,1 @@
+Use LIB2A to convert ftlLib.lib (MSVC) to libfltLib.a (MINGW)
