@@ -41,6 +41,7 @@ VOID imageCallback(__in PUNICODE_STRING FullImageName,
 				   __in HANDLE ProcessId,
 				   __in PIMAGE_INFO ImageInfo)
 {
+	UNREFERENCED_PARAMETER(ProcessId);
 	NTSTATUS exceptionCode;
 	ULONG currentProcessId;
 	UNICODE_STRING kImageName;

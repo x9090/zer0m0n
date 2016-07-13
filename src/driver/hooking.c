@@ -94,7 +94,7 @@ ULONG GetSyscallNumber(__in PIMAGE_EXPORT_DIRECTORY pImageExportDirectory,
 	PWORD addrOrdinal = NULL;
 	ULONG i = 0;
 	PCHAR name = NULL;
-	SIZE_T n;
+	size_t n;
 	
 	if(pImageExportDirectory && funcName)
 	{
@@ -104,11 +104,11 @@ ULONG GetSyscallNumber(__in PIMAGE_EXPORT_DIRECTORY pImageExportDirectory,
 		
 		for(i=0; i < pImageExportDirectory->NumberOfNames; ++i)
 		{
-			name = ((unsigned char*)Ntdll_ImageBase + addrName[i]);
+			name = ((PCHAR)Ntdll_ImageBase + addrName[i]);
 			__try
 			{
 				ProbeForRead(name, 0, 1);
-				RtlStringCchLengthA(funcName, NTSTRSAFE_MAX_CCH, &n);
+				RtlStringCchLengthA((PCSTR)funcName, NTSTRSAFE_MAX_CCH, &n);
 				if(RtlEqualMemory(funcName, name, n))
 				{
 					Dbg("[+] FOUND : %s\n", name);
@@ -160,7 +160,7 @@ PVOID GetEndOfTextSection(__in PVOID moduleBase)
 	PIMAGE_NT_HEADERS64 pNtHeader = NULL;
 	PIMAGE_SECTION_HEADER pSectionHeader = NULL;
 	ULONG i;
-	PVOID begin_text, end_text;
+	PVOID begin_text = NULL, end_text = NULL;
 
 	pDosHeader = (PIMAGE_DOS_HEADER)moduleBase;
 	pNtHeader = (PIMAGE_NT_HEADERS64)((unsigned char*)moduleBase+pDosHeader->e_lfanew);
@@ -212,6 +212,8 @@ PVOID GetKernelBase()
 	return 0;
 }
 
+#pragma warning(push)
+#pragma warning(disable: 4305) // Disable once 'type cast' : truncation from 'unsigned __int64' to 'PUCHAR'
 ULONGLONG GetKeServiceDescriptorTable64()
 {
 	PUCHAR      pStartSearchAddress   = (PUCHAR)__readmsr(0xC0000082);
@@ -229,7 +231,7 @@ ULONGLONG GetKeServiceDescriptorTable64()
 	}
 	return 0;
 }
-
+#pragma warning(pop)
 VOID HookSSDT()
 {
 	PDWORD func = NULL;
@@ -299,6 +301,8 @@ VOID Install_Hook(__in ULONG syscall,
 				  __in PVOID searchAddr, 
 				  __in PULONG KiServiceTable)
 {	
+	UNREFERENCED_PARAMETER(KiServiceTable);
+	UNREFERENCED_PARAMETER(searchAddr);
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
 	UCHAR jmp_to_newFunction[] = "\x48\xB8\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00\xFF\xE0"; //mov rax, xxx ; jmp rax
 	KIRQL Irql;
@@ -313,8 +317,9 @@ VOID Install_Hook(__in ULONG syscall,
 		irql = UnsetWP();
 
 		#ifdef _M_IX86
-		*origFunc = (PVOID)SYSTEMSERVICE(syscall);
-		(PVOID)SYSTEMSERVICE(syscall) = hookedFunc;
+		/**origFunc = (PVOID)SYSTEMSERVICE(syscall);
+		(PVOID)SYSTEMSERVICE(syscall) = hookedFunc;*/
+		*origFunc = InterlockedExchangePointer((PVOID*)SYSTEMSERVICE(syscall), &hookedFunc);
 		
 		#elif defined _M_X64
 		Dbg("OS : 64 bits !\n");

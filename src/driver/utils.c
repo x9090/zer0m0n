@@ -147,23 +147,25 @@ NTSTATUS ParsePids(__in PCHAR pids)
 	
 	return STATUS_SUCCESS;
 }
-
+#pragma warning(push)
+#pragma warning(disable: 4055)
 VOID Resolve_FunctionsAddr()
 {
 	UNICODE_STRING usFuncName;
 	
 	RtlInitUnicodeString(&usFuncName, L"ZwQuerySystemInformation");
-	ZwQuerySystemInformation = MmGetSystemRoutineAddress(&usFuncName);
+	ZwQuerySystemInformation = (ZWQUERYSYSTEMINFORMATION)MmGetSystemRoutineAddress(&usFuncName);
 
 	RtlInitUnicodeString(&usFuncName, L"ZwQueryInformationProcess");
-	ZwQueryInformationProcess = MmGetSystemRoutineAddress(&usFuncName);
+	ZwQueryInformationProcess = (ZWQUERYINFORMATIONPROCESS)MmGetSystemRoutineAddress(&usFuncName);
 	
 	RtlInitUnicodeString(&usFuncName, L"ZwQueryInformationThread");
-	ZwQueryInformationThread = MmGetSystemRoutineAddress(&usFuncName);
+	ZwQueryInformationThread = (ZWQUERYINFORMATIONTHREAD)MmGetSystemRoutineAddress(&usFuncName);
 		
 	RtlInitUnicodeString(&usFuncName, L"ZwQuerySection");
-	ZwQuerySection = MmGetSystemRoutineAddress(&usFuncName);
+	ZwQuerySection = (ZWQUERYSECTION)MmGetSystemRoutineAddress(&usFuncName);
 }	
+#pragma warning(pop)
 
 ULONG getPIDByThreadHandle(__in HANDLE hThread)
 {
