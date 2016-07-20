@@ -115,6 +115,8 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 	ULONG ioControlCode;
 	ULONG inputLength;
 	ULONG malware_pid = 0;
+	ULONG malware_tid = 0;
+	PCHAR pid, tid;
 
 	if(pIrp == NULL || pDeviceObject == NULL)
 		return STATUS_INVALID_PARAMETER;
@@ -128,15 +130,26 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 	switch(ioControlCode)
 	{
 		case IOCTL_PROC_MALWARE:
-			Dbg("IOCTL_PROC_MALWARE received\n");
-			status = RtlCharToInteger(buffer, 10, &malware_pid);
-			Dbg("malware_pid : %d\n", malware_pid);
+			pid = buffer;
+			tid = strrchr(buffer, ':');
+
+			// Null the delimiter
+			*tid = 0;
+			// Adjust the pointer to the thread ID
+			tid = tid + 1;
+
+			Dbg("[%s] IOCTL_PROC_MALWARE received\n", __FUNCTION__);
+
+			status = RtlCharToInteger(pid, 10, &malware_pid);
+			Dbg("[%s] Sample PID : %d\n", __FUNCTION__, malware_pid);
 			if(NT_SUCCESS(status) && malware_pid > 0)
 				StartMonitoringProcess(malware_pid);				
+			status = RtlCharToInteger(tid, 10, &malware_tid);
+			Dbg("[%s] Sample TID : %d\n", __FUNCTION__, malware_tid);
 			break;	
 
 		case IOCTL_PROC_TO_HIDE:
-			Dbg("pids to hide : %s\n", buffer);
+			Dbg("[%s] pids to hide : %s\n", __FUNCTION__, buffer);
 			status = ParsePids(buffer);
 			RtlZeroMemory(buffer, inputLength);
 			break;
@@ -148,10 +161,10 @@ NTSTATUS Ioctl_DeviceControl(__in PDEVICE_OBJECT pDeviceObject,
 				RtlStringCchPrintfW(cuckooPath, MAX_SIZE, L"\\??\\%ws", buffer);
 			else
 			{
-				Dbg("IOCTL_CUCKOO_PATH : Buffer too large\n");
+				Dbg("[%s] IOCTL_CUCKOO_PATH : Buffer too large\n", __FUNCTION__);
 				return STATUS_BUFFER_TOO_SMALL;
 			}
-			Dbg("cuckoo path : %ws\n", cuckooPath);
+			Dbg("[%s] cuckoo path : %ws\n", __FUNCTION__, cuckooPath);
 			break;
 
 		default:
@@ -198,8 +211,8 @@ NTSTATUS SendLogs(__in ULONG pid,
 	if(sig_func <= 0)
 		return STATUS_INVALID_PARAMETER;
 
-	Dbg("SendLogs\n");
-	Dbg("parameter : %ws\n", parameter);
+	Dbg("[%s] SendLogs\n", __FUNCTION__);
+	Dbg("[%s] parameter : %ws\n", __FUNCTION__, parameter);
 		
 	processName.Length = 0;
 	processName.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
@@ -257,7 +270,7 @@ NTSTATUS SendLogs(__in ULONG pid,
 	PoolFree(processName.Buffer);
 
 	if(!NT_SUCCESS(status))
-		Dbg("return : 0x%08x\n", status);
+		Dbg("[%s] return : 0x%08x\n", __FUNCTION__, status);
 
 	return status;
 }

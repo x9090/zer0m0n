@@ -39,7 +39,6 @@
 
 #pragma warning(disable: 4054 4057 4101 4189)
 
-//#define DEBUG
 #ifdef DEBUG
 	#define Dbg(fmt, ...) \
 		DbgPrintEx(DPFLTR_IHVDRIVER_ID, DPFLTR_ERROR_LEVEL, fmt, __VA_ARGS__);

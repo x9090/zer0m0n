@@ -44,7 +44,7 @@ PVOID MapNtdllIntoMemory()
 	HANDLE hSection;
 	OBJECT_ATTRIBUTES objAttr;
 	UNICODE_STRING pathFile;
-	SECTION_IMAGE_INFORMATION sii;
+	SECTION_IMAGE_INFORMATION sii = { 0 };
 	USHORT NumberOfSections;
 	PVOID pSection = NULL;
 	PIMAGE_DOS_HEADER pDosHeader = NULL;
@@ -59,28 +59,28 @@ PVOID MapNtdllIntoMemory()
 	
 	if(NT_SUCCESS(status = ZwOpenSection(&hSection, SECTION_MAP_READ, &objAttr)))
 	{
-			ZwQuerySection(hSection, 1, &sii, sizeof(sii), 0);
-			Dbg("ntdll entry point : 0x%08x\n", sii.EntryPoint);
-			Ntdll_ImageBase = sii.EntryPoint;
-			pDosHeader = (PIMAGE_DOS_HEADER)Ntdll_ImageBase;
-			
-			#ifdef _M_X64
-			pNtHeader64 = (PIMAGE_NT_HEADERS64)((unsigned char*)Ntdll_ImageBase+pDosHeader->e_lfanew); 
-			pSectionHeader = (PIMAGE_SECTION_HEADER)((unsigned char*)pNtHeader64+sizeof(IMAGE_NT_HEADERS64)); 
-			dwExportRVA  = pNtHeader64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-			dwExportSize = pNtHeader64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-			#endif
-			
-			pNtHeader = (PIMAGE_NT_HEADERS)((unsigned char*)Ntdll_ImageBase+pDosHeader->e_lfanew); 
-			pSectionHeader = (PIMAGE_SECTION_HEADER)((unsigned char*)pNtHeader+sizeof(IMAGE_NT_HEADERS)); 
-			dwExportRVA  = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
-			dwExportSize = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
-						
-			Dbg("Export table address : 0x%08x\n", dwExportRVA);
-			Dbg("Export table size : 0x%08x\n", dwExportSize);
-			Dbg("EAT : 0x%08X\n", (PIMAGE_EXPORT_DIRECTORY)((unsigned char*)Ntdll_ImageBase+dwExportRVA));
-			pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((unsigned char*)Ntdll_ImageBase+dwExportRVA);
-			Dbg("number of exported functions : 0x%08x\n", pImageExportDirectory->NumberOfFunctions);
+		ZwQuerySection(hSection, 1, &sii, sizeof(sii), 0);
+		Dbg("ntdll entry point : %llx\n", sii.EntryPoint);
+		Ntdll_ImageBase = sii.EntryPoint;
+		pDosHeader = (PIMAGE_DOS_HEADER)Ntdll_ImageBase;
+
+	#ifdef _M_X64
+		pNtHeader64 = (PIMAGE_NT_HEADERS64)((unsigned char*)Ntdll_ImageBase+pDosHeader->e_lfanew); 
+		pSectionHeader = (PIMAGE_SECTION_HEADER)((unsigned char*)pNtHeader64+sizeof(IMAGE_NT_HEADERS64)); 
+		dwExportRVA  = pNtHeader64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+		dwExportSize = pNtHeader64->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+	#endif
+
+		pNtHeader = (PIMAGE_NT_HEADERS)((unsigned char*)Ntdll_ImageBase + pDosHeader->e_lfanew);
+		pSectionHeader = (PIMAGE_SECTION_HEADER)((unsigned char*)pNtHeader + sizeof(IMAGE_NT_HEADERS));
+		dwExportRVA = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+		dwExportSize = pNtHeader->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].Size;
+
+		Dbg("Export table address : 0x%08x\n", dwExportRVA);
+		Dbg("Export table size : 0x%08x\n", dwExportSize);
+		Dbg("EAT : 0x%08X\n", (PIMAGE_EXPORT_DIRECTORY)((unsigned char*)Ntdll_ImageBase + dwExportRVA));
+		pImageExportDirectory = (PIMAGE_EXPORT_DIRECTORY)((unsigned char*)Ntdll_ImageBase + dwExportRVA);
+		Dbg("number of exported functions : 0x%08x\n", pImageExportDirectory->NumberOfFunctions);
 	}
 	ZwClose(hSection);
 	return pImageExportDirectory;
@@ -140,7 +140,7 @@ PVOID SearchCodeCave(__in PUCHAR pStartSearchAddress)
 		if(MmIsAddressValid(pStartSearchAddress))
 		{
 			if(*(PULONG)pStartSearchAddress == 0x00000000 && *(PULONG)(pStartSearchAddress+4) == 0x00000000 && *(PULONG)(pStartSearchAddress+8) == 0x00000000)
-				return pStartSearchAddress-1;	
+				return pStartSearchAddress;	
 		}
 	}
 	return 0;
@@ -250,7 +250,7 @@ VOID HookSSDT()
 	Dbg("Kernel base addr : %llx\n", kernelBase);
 	pStartSearchAddress = GetEndOfTextSection(kernelBase);
 	Dbg("pStartSearchAddress : %llx\n", pStartSearchAddress);
-	offsetSyscall = 21;
+	offsetSyscall = 4;
 #endif
 
 	pImageExportDirectory = MapNtdllIntoMemory();
@@ -260,7 +260,7 @@ VOID HookSSDT()
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDeleteFile", offsetSyscall), (PVOID)Hooked_NtDeleteFile, (PVOID*)&Orig_NtDeleteFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenFile", offsetSyscall), (PVOID)Hooked_NtOpenFile, (PVOID*)&Orig_NtOpenFile, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSetInformationFile", offsetSyscall), (PVOID)Hooked_NtSetInformationFile, (PVOID*)&Orig_NtSetInformationFile, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwClose", offsetSyscall), (PVOID)Hooked_NtClose, (PVOID*)&Orig_NtClose, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwClose", offsetSyscall), (PVOID)Hooked_NtClose, (PVOID*)&Orig_NtClose, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDeviceIoControlFile", offsetSyscall), (PVOID)Hooked_NtDeviceIoControlFile, (PVOID*)&Orig_NtDeviceIoControlFile, pStartSearchAddress, KiServiceTable);	
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQueryAttributesFile", offsetSyscall), (PVOID)Hooked_NtQueryAttributesFile, (PVOID*)&Orig_NtQueryAttributesFile, pStartSearchAddress, KiServiceTable);
 	
@@ -279,20 +279,20 @@ VOID HookSSDT()
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwWriteVirtualMemory", offsetSyscall), (PVOID)Hooked_NtWriteVirtualMemory, (PVOID*)&Orig_NtWriteVirtualMemory, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwReadVirtualMemory", offsetSyscall), (PVOID)Hooked_NtReadVirtualMemory, (PVOID*)&Orig_NtReadVirtualMemory, pStartSearchAddress, KiServiceTable);
 	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwMapViewOfSection", offsetSyscall), (PVOID)Hooked_NtMapViewOfSection, (PVOID*)&Orig_NtMapViewOfSection, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenProcess", offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwResumeThread", offsetSyscall), (PVOID)Hooked_NtResumeThread, (PVOID*)&Orig_NtResumeThread, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSetContextThread", offsetSyscall), (PVOID)Hooked_NtSetContextThread, (PVOID*)&Orig_NtSetContextThread, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThread", offsetSyscall), (PVOID)Hooked_NtCreateThread, (PVOID*)&Orig_NtCreateThread, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThreadEx", offsetSyscall), (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateSection", offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);//
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall), (PVOID)Hooked_NtSystemDebugControl, (PVOID*)&Orig_NtSystemDebugControl, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQueueApcThread", offsetSyscall), (PVOID)Hooked_NtQueueApcThread, (PVOID*)&Orig_NtQueueApcThread, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenThread", offsetSyscall), (PVOID)Hooked_NtOpenThread, (PVOID*)&Orig_NtOpenThread, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQuerySystemInformation", offsetSyscall), (PVOID)Hooked_NtQuerySystemInformation, (PVOID*)&Orig_NtQuerySystemInformation, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall), (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenProcess", offsetSyscall), (PVOID)Hooked_NtOpenProcess, (PVOID*)&Orig_NtOpenProcess, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwResumeThread", offsetSyscall), (PVOID)Hooked_NtResumeThread, (PVOID*)&Orig_NtResumeThread, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSetContextThread", offsetSyscall), (PVOID)Hooked_NtSetContextThread, (PVOID*)&Orig_NtSetContextThread, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThread", offsetSyscall), (PVOID)Hooked_NtCreateThread, (PVOID*)&Orig_NtCreateThread, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateThreadEx", offsetSyscall), (PVOID)Hooked_NtCreateThreadEx, (PVOID*)&Orig_NtCreateThreadEx, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateSection", offsetSyscall), (PVOID)Hooked_NtCreateSection, (PVOID*)&Orig_NtCreateSection, pStartSearchAddress, KiServiceTable);//
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwSystemDebugControl", offsetSyscall), (PVOID)Hooked_NtSystemDebugControl, (PVOID*)&Orig_NtSystemDebugControl, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQueueApcThread", offsetSyscall), (PVOID)Hooked_NtQueueApcThread, (PVOID*)&Orig_NtQueueApcThread, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwOpenThread", offsetSyscall), (PVOID)Hooked_NtOpenThread, (PVOID*)&Orig_NtOpenThread, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwQuerySystemInformation", offsetSyscall), (PVOID)Hooked_NtQuerySystemInformation, (PVOID*)&Orig_NtQuerySystemInformation, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDebugActiveProcess", offsetSyscall), (PVOID)Hooked_NtDebugActiveProcess, (PVOID*)&Orig_NtDebugActiveProcess, pStartSearchAddress, KiServiceTable);
 
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateMutant", offsetSyscall), (PVOID)Hooked_NtCreateMutant, (PVOID*)&Orig_NtCreateMutant, pStartSearchAddress, KiServiceTable);
-	Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDelayExecution", offsetSyscall), (PVOID)Hooked_NtDelayExecution, (PVOID*)&Orig_NtDelayExecution, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwCreateMutant", offsetSyscall), (PVOID)Hooked_NtCreateMutant, (PVOID*)&Orig_NtCreateMutant, pStartSearchAddress, KiServiceTable);
+	//Install_Hook(GetSyscallNumber(pImageExportDirectory, "ZwDelayExecution", offsetSyscall), (PVOID)Hooked_NtDelayExecution, (PVOID*)&Orig_NtDelayExecution, pStartSearchAddress, KiServiceTable);
 }
 
 VOID Install_Hook(__in ULONG syscall, 
@@ -304,7 +304,7 @@ VOID Install_Hook(__in ULONG syscall,
 	UNREFERENCED_PARAMETER(KiServiceTable);
 	UNREFERENCED_PARAMETER(searchAddr);
 	NTSTATUS Status = STATUS_UNSUCCESSFUL;
-	UCHAR jmp_to_newFunction[] = "\x48\xB8\xFF\xFF\xFF\xFF\xFF\xFF\xFF\x00\xFF\xE0"; //mov rax, xxx ; jmp rax
+	UCHAR jmp_to_newFunction[] = "\x48\xB8\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xFF\xE0"; //mov rax, xxx ; jmp rax
 	KIRQL Irql;
 	ULONG SsdtEntry;
 	PVOID trampoline = NULL;
@@ -317,14 +317,13 @@ VOID Install_Hook(__in ULONG syscall,
 		irql = UnsetWP();
 
 		#ifdef _M_IX86
-		/**origFunc = (PVOID)SYSTEMSERVICE(syscall);
-		(PVOID)SYSTEMSERVICE(syscall) = hookedFunc;*/
-		*origFunc = InterlockedExchangePointer((PVOID*)SYSTEMSERVICE(syscall), &hookedFunc);
+		*origFunc = InterlockedExchangePointer((PVOID*)&SYSTEMSERVICE(syscall), hookedFunc);
 		
 		#elif defined _M_X64
 		Dbg("OS : 64 bits !\n");
 		*origFunc = (PVOID)GetNTAddressFromSSDT(KiServiceTable, syscall); 
 		Dbg("Orig_Func : %llx\n", *origFunc);
+		Dbg("Hooked_Func : %llx\n", hookedFunc);
 
 		// mov rax, @NewFunc; jmp rax
 		*(PULONGLONG)(jmp_to_newFunction+2) = (ULONGLONG)hookedFunc;

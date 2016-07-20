@@ -205,24 +205,28 @@ VOID CopyBuffer(__out PWCHAR dst,
 				__in ULONG_PTR size)
 {
 	ULONG i, n = 0;
+
 	if(dst && src && size)
 	{
-		RtlZeroMemory(dst, BUFFER_LOG_MAX);
+		if (size >= BUFFER_LOG_MAX)
+			size = BUFFER_LOG_MAX;
+
+		RtlZeroMemory(dst, size);
 		for(i=0; i<size; i++)
 		{
-			if(i >= (BUFFER_LOG_MAX/2))
+			if (i >= (size / 2))
 				break;
 			
 			if(src[i] != 0x00)
 			{
 				if((src[i] >= 0x20) && (src[i] <= 0x7E) && (src[i] != 0x2C))
 				{
-					RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"%c", src[i]);
+					RtlStringCchPrintfW(&dst[n], (size / 2) - n - 1, L"%c", src[i]);
 					n++;
 				}
 				else
 				{
-					RtlStringCchPrintfW(&dst[n], (BUFFER_LOG_MAX/2)-n-1, L"\\x%02x", src[i]);
+					RtlStringCchPrintfW(&dst[n], (size / 2) - n - 1, L"\\x%02x", src[i]);
 					n+=4;
 				}
 			}

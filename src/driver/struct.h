@@ -154,7 +154,7 @@ typedef struct _SECTION_IMAGE_INFORMATION {
   ULONG     ImageCharacteristics;
   ULONG     ImageMachineType;
   ULONG     Unknown2[3];
-
+  ULONG		Unknown[14];
 } SECTION_IMAGE_INFORMATION, *PSECTION_IMAGE_INFORMATION;
 
 

@@ -74,172 +74,172 @@ VOID imageCallback(__in PUNICODE_STRING FullImageName,
 			{
 				exceptionCode = GetExceptionCode();
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,s,DriverName->ERROR", exceptionCode)))
-					SendLogs(currentProcessId, SIG_ntdll_NtLoadDriver, parameter);
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtLoadDriver, parameter);
 				else 
-					SendLogs(currentProcessId, SIG_ntdll_NtLoadDriver, L"0,-1,s,DriverName->ERROR");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtLoadDriver, L"0,-1,s,DriverName->ERROR");
 				if(parameter != NULL)
 					PoolFree(parameter);
 				return;
 			}
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"1,0,s,DriverName->%wZ", &kImageName)))
-				SendLogs(currentProcessId, SIG_ntdll_NtLoadDriver, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtLoadDriver, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntdll_NtLoadDriver, L"0,-1,s,DriverName->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtLoadDriver, L"0,-1,s,DriverName->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 		}
 	}
 }
 
-NTSTATUS Hooked_NtDelayExecution(__in BOOLEAN Alertable,
-								 __in PLARGE_INTEGER DelayInterval)
-{
-	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId;
-	USHORT log_lvl = LOG_ERROR;
-	PWCHAR parameter = NULL;
-	LARGE_INTEGER kDelayInterval = {0};
-	ULONGLONG ms = 0;
+//NTSTATUS Hooked_NtDelayExecution(__in BOOLEAN Alertable,
+//								 __in PLARGE_INTEGER DelayInterval)
+//{
+//	NTSTATUS statusCall, exceptionCode;
+//	ULONG currentProcessId;
+//	USHORT log_lvl = LOG_ERROR;
+//	PWCHAR parameter = NULL;
+//	LARGE_INTEGER kDelayInterval = {0};
+//	ULONGLONG ms = 0;
+//
+//	PAGED_CODE();
+//	
+//	currentProcessId = (ULONG)PsGetCurrentProcessId();
+//	statusCall = Orig_NtDelayExecution(Alertable, DelayInterval);
+//	
+//	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+//	{
+//		Dbg("Call NtDelayExecution\n");
+//			
+//		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+//		
+//		__try
+//		{
+//			if(DelayInterval)
+//			{
+//				ProbeForRead(DelayInterval, sizeof(LARGE_INTEGER), 1);
+//				kDelayInterval = *DelayInterval;
+//				ms = -kDelayInterval.QuadPart/10000;
+//			}
+//		}
+//		__except (EXCEPTION_EXECUTE_HANDLER)
+//		{
+//			exceptionCode = GetExceptionCode();
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,s,DelayInterval->0", exceptionCode)))
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtDelayExecution, parameter);
+//			else 
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtDelayExecution, L"0,-1,s,DelayInterval->0");
+//			if(parameter != NULL)
+//				PoolFree(parameter);
+//			return statusCall;
+//		}
+//		
+//		if(NT_SUCCESS(statusCall))
+//		{
+//			log_lvl = LOG_SUCCESS;
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,s,DelayInterval->%d", ms)))
+//				log_lvl = LOG_PARAM;
+//		}
+//		else
+//		{
+//			log_lvl = LOG_ERROR;
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,s,DelayInterval->%d", statusCall, ms)))
+//				log_lvl = LOG_PARAM;
+//		}
+//		
+//		switch(log_lvl)
+//		{
+//			case LOG_PARAM:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtDelayExecution, parameter);
+//			break;
+//			case LOG_SUCCESS:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtDelayExecution, L"1,0,s,DelayInterval->0");
+//			break;
+//			default:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtDelayExecution, L"0,-1,s,DelayInterval->0");
+//			break;
+//		}
+//		if(parameter != NULL)
+//			PoolFree(parameter);
+//	}
+//	return statusCall;
+//}
 
-	PAGED_CODE();
-	
-	currentProcessId = (ULONG)PsGetCurrentProcessId();
-	statusCall = Orig_NtDelayExecution(Alertable, DelayInterval);
-	
-	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
-	{
-		Dbg("Call NtDelayExecution\n");
-			
-		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
-		
-		__try
-		{
-			if(DelayInterval)
-			{
-				ProbeForRead(DelayInterval, sizeof(LARGE_INTEGER), 1);
-				kDelayInterval = *DelayInterval;
-				ms = -kDelayInterval.QuadPart/10000;
-			}
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
-			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,s,DelayInterval->0", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtDelayExecution, parameter);
-			else 
-				SendLogs(currentProcessId, SIG_ntdll_NtDelayExecution, L"0,-1,s,DelayInterval->0");
-			if(parameter != NULL)
-				PoolFree(parameter);
-			return statusCall;
-		}
-		
-		if(NT_SUCCESS(statusCall))
-		{
-			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,s,DelayInterval->%d", ms)))
-				log_lvl = LOG_PARAM;
-		}
-		else
-		{
-			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,s,DelayInterval->%d", statusCall, ms)))
-				log_lvl = LOG_PARAM;
-		}
-		
-		switch(log_lvl)
-		{
-			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtDelayExecution, parameter);
-			break;
-			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtDelayExecution, L"1,0,s,DelayInterval->0");
-			break;
-			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtDelayExecution, L"0,-1,s,DelayInterval->0");
-			break;
-		}
-		if(parameter != NULL)
-			PoolFree(parameter);
-	}
-	return statusCall;
-}
-
-NTSTATUS Hooked_NtCreateMutant(__out PHANDLE MutantHandle,
-							   __in ACCESS_MASK DesiredAccess,
-							   __in_opt POBJECT_ATTRIBUTES ObjectAttributes,
-							   __in BOOLEAN InitialOwner)
-{
-	NTSTATUS statusCall, exceptionCode;
-	ULONG currentProcessId;
-	HANDLE kMutantHandle;
-	USHORT log_lvl = LOG_ERROR;
-	PWCHAR parameter = NULL;
-	UNICODE_STRING kObjectName;
-	
-	PAGED_CODE();
-	
-	currentProcessId = (ULONG)PsGetCurrentProcessId();
-	statusCall = Orig_NtCreateMutant(MutantHandle, DesiredAccess, ObjectAttributes, InitialOwner);
-	
-	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
-	{
-		Dbg("Call NtCreateMutant\n");
-			
-		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
-		
-		__try
-		{
-
-			ProbeForRead(MutantHandle, sizeof(HANDLE), 1);
-			ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
-			ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
-			ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
-		
-			kMutantHandle = *MutantHandle;
-			kObjectName.Length = ObjectAttributes->ObjectName->Length;
-			kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
-			kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
-			RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);	
-		}
-		__except (EXCEPTION_EXECUTE_HANDLER)
-		{
-			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateMutant, parameter);
-			else 
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateMutant, L"0,-1,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
-			if(parameter != NULL)
-				PoolFree(parameter);
-			return statusCall;
-		}
-		
-		if(NT_SUCCESS(statusCall))
-		{
-			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%wZ", kMutantHandle, DesiredAccess, InitialOwner, &kObjectName)))
-				log_lvl = LOG_PARAM;
-		}
-		else
-		{
-			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%wZ", statusCall, kMutantHandle, DesiredAccess, InitialOwner, &kObjectName)))
-				log_lvl = LOG_PARAM;
-		}
-		
-		switch(log_lvl)
-		{
-			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateMutant, parameter);
-			break;
-			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateMutant, L"1,0,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
-			break;
-			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateMutant, L"0,-1,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
-			break;
-		}
-		if(parameter != NULL)
-			PoolFree(parameter);
-	}
-	return statusCall;
-}
+//NTSTATUS Hooked_NtCreateMutant(__out PHANDLE MutantHandle,
+//							   __in ACCESS_MASK DesiredAccess,
+//							   __in_opt POBJECT_ATTRIBUTES ObjectAttributes,
+//							   __in BOOLEAN InitialOwner)
+//{
+//	NTSTATUS statusCall, exceptionCode;
+//	ULONG currentProcessId;
+//	HANDLE kMutantHandle;
+//	USHORT log_lvl = LOG_ERROR;
+//	PWCHAR parameter = NULL;
+//	UNICODE_STRING kObjectName;
+//	
+//	PAGED_CODE();
+//	
+//	currentProcessId = (ULONG)PsGetCurrentProcessId();
+//	statusCall = Orig_NtCreateMutant(MutantHandle, DesiredAccess, ObjectAttributes, InitialOwner);
+//	
+//	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
+//	{
+//		Dbg("Call NtCreateMutant\n");
+//			
+//		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+//		
+//		__try
+//		{
+//
+//			ProbeForRead(MutantHandle, sizeof(HANDLE), 1);
+//			ProbeForRead(ObjectAttributes, sizeof(OBJECT_ATTRIBUTES), 1);
+//			ProbeForRead(ObjectAttributes->ObjectName, sizeof(UNICODE_STRING), 1);
+//			ProbeForRead(ObjectAttributes->ObjectName->Buffer, ObjectAttributes->ObjectName->Length, 1);
+//		
+//			kMutantHandle = *MutantHandle;
+//			kObjectName.Length = ObjectAttributes->ObjectName->Length;
+//			kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
+//			kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
+//			RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);	
+//		}
+//		__except (EXCEPTION_EXECUTE_HANDLER)
+//		{
+//			exceptionCode = GetExceptionCode();
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR", exceptionCode)))
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, parameter);
+//			else 
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, L"0,-1,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
+//			if(parameter != NULL)
+//				PoolFree(parameter);
+//			return statusCall;
+//		}
+//		
+//		if(NT_SUCCESS(statusCall))
+//		{
+//			log_lvl = LOG_SUCCESS;
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%wZ", kMutantHandle, DesiredAccess, InitialOwner, &kObjectName)))
+//				log_lvl = LOG_PARAM;
+//		}
+//		else
+//		{
+//			log_lvl = LOG_ERROR;
+//			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%wZ", statusCall, kMutantHandle, DesiredAccess, InitialOwner, &kObjectName)))
+//				log_lvl = LOG_PARAM;
+//		}
+//		
+//		switch(log_lvl)
+//		{
+//			case LOG_PARAM:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, parameter);
+//			break;
+//			case LOG_SUCCESS:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, L"1,0,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
+//			break;
+//			default:
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, L"0,-1,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
+//			break;
+//		}
+//		if(parameter != NULL)
+//			PoolFree(parameter);
+//	}
+//	return statusCall;
+//}

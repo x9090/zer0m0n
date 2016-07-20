@@ -78,9 +78,9 @@ NTSTATUS Hooked_NtQueryAttributesFile(__in POBJECT_ATTRIBUTES ObjectAttributes,
 			{
 				exceptionCode = GetExceptionCode();
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,FileHandle->0,buffer->ERROR,offset->0", exceptionCode)))
-					SendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, parameter);
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtQueryAttributesFile, parameter);
 				else
-					SendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtQueryAttributesFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
 				if(parameter != NULL)
 					PoolFree(parameter);
 				return statusCall;
@@ -108,9 +108,9 @@ NTSTATUS Hooked_NtQueryAttributesFile(__in POBJECT_ATTRIBUTES ObjectAttributes,
 				wcsistr(kObjectName.Buffer, L"\\??\\C:\\Program Files\\oracle\\virtualbox guest additions\\"))
 			{
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,-1,s,filepath->%wZ", &kObjectName)))
-					SendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, parameter);
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtQueryAttributesFile, parameter);
 				else
-					SendLogs(currentProcessId, SIG_ntdll_NtQueryAttributesFile, L"0,-1,s,filepath->ERROR");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtQueryAttributesFile, L"0,-1,s,filepath->ERROR");
 				if(parameter != NULL)
 					PoolFree(parameter);
 				return INVALID_FILE_ATTRIBUTES;
@@ -169,9 +169,9 @@ NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeviceIoControlFile, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, L"0,-1,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeviceIoControlFile, L"0,-1,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -180,6 +180,14 @@ NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 		// log input and output buffer
 		iBuff = PoolAlloc(BUFFER_LOG_MAX);
 		oBuff = PoolAlloc(BUFFER_LOG_MAX);
+
+		// Something wrong with pool allocation
+		if (!iBuff || !oBuff)
+		{
+			ASSERT(FALSE);
+			return statusCall;
+		}
+
 		CopyBuffer(iBuff, kInputBuffer, InputBufferLength);
 		CopyBuffer(oBuff, kOutputBuffer, OutputBufferLength);
 
@@ -199,13 +207,13 @@ NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeviceIoControlFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, L"1,0,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeviceIoControlFile, L"1,0,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
 				break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeviceIoControlFile, L"0,-1,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeviceIoControlFile, L"0,-1,ssss,InputBuffer->ERROR,FileHandle->0,ControlCode->0,OutputBuffer->ERROR");
 		}
 
 		if(iBuff != NULL)
@@ -218,59 +226,59 @@ NTSTATUS Hooked_NtDeviceIoControlFile(__in HANDLE FileHandle,
 	return statusCall;
 }
 
-NTSTATUS Hooked_NtClose(__in HANDLE Handle)
-{
-	NTSTATUS statusCall;
-	ULONG currentProcessId;
-	UNICODE_STRING file_to_dump;
-	PWCHAR parameter = NULL; 
-	POBJECT_NAME_INFORMATION nameInformation = NULL;
-	USHORT log_lvl = LOG_ERROR;
-	
-	PAGED_CODE();
-
-	currentProcessId = (ULONG)PsGetCurrentProcessId();
-	
-	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && IsHandleInList(Handle) && (ExGetPreviousMode() != KernelMode))
-	{
-		Dbg("Call NtClose\n");
-
-		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
-
-		// retrieve filename from handle
-		nameInformation = PoolAlloc(MAX_SIZE);
-		if(nameInformation != NULL)
-			ZwQueryObject(Handle, ObjectNameInformation, nameInformation, MAX_SIZE, NULL);
-		
-		// we need to move the file straight away (:
-		if(nameInformation->Name.Buffer)
-		{
-			ZwClose(Handle);
-			
-			file_to_dump.Length = 0;
-			file_to_dump.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
-			file_to_dump.Buffer = PoolAlloc(file_to_dump.MaximumLength);
-			if(!NT_SUCCESS(dump_file(nameInformation->Name, &file_to_dump)))
-				RtlInitUnicodeString(&file_to_dump, L"ERROR");
-			
-			if(parameter && nameInformation && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ss,FileHandle->0x%08x,FileToDump->%wZ", Handle, &file_to_dump)))
-				SendLogs(currentProcessId, SIG_ntdll_NtClose, parameter);
-			else
-				SendLogs(currentProcessId, SIG_ntdll_NtClose, L"0,-1,ss,FileHandle->0,FileToDump->ERROR");
-		}
-		
-		if(nameInformation != NULL)
-			PoolFree(nameInformation);
-		
-		if(parameter != NULL)
-			PoolFree(parameter);
-		
-		RemoveHandleFromList(Handle);
-		return Orig_NtClose(Handle);
-	}
-	else
-		return Orig_NtClose(Handle);
-}
+//NTSTATUS Hooked_NtClose(__in HANDLE Handle)
+//{
+//	NTSTATUS statusCall;
+//	ULONG currentProcessId;
+//	UNICODE_STRING file_to_dump;
+//	PWCHAR parameter = NULL; 
+//	POBJECT_NAME_INFORMATION nameInformation = NULL;
+//	USHORT log_lvl = LOG_ERROR;
+//	
+//	PAGED_CODE();
+//
+//	currentProcessId = (ULONG)PsGetCurrentProcessId();
+//	
+//	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && IsHandleInList(Handle) && (ExGetPreviousMode() != KernelMode))
+//	{
+//		Dbg("Call NtClose\n");
+//
+//		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
+//
+//		// retrieve filename from handle
+//		nameInformation = PoolAlloc(MAX_SIZE);
+//		if(nameInformation != NULL)
+//			ZwQueryObject(Handle, ObjectNameInformation, nameInformation, MAX_SIZE, NULL);
+//		
+//		// we need to move the file straight away (:
+//		if(nameInformation->Name.Buffer)
+//		{
+//			ZwClose(Handle);
+//			
+//			file_to_dump.Length = 0;
+//			file_to_dump.MaximumLength = NTSTRSAFE_UNICODE_STRING_MAX_CCH * sizeof(WCHAR);
+//			file_to_dump.Buffer = PoolAlloc(file_to_dump.MaximumLength);
+//			if(!NT_SUCCESS(dump_file(nameInformation->Name, &file_to_dump)))
+//				RtlInitUnicodeString(&file_to_dump, L"ERROR");
+//			
+//			if(parameter && nameInformation && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ss,FileHandle->0x%08x,FileToDump->%wZ", Handle, &file_to_dump)))
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtClose, parameter);
+//			else
+//				SendLogs(currentProcessId, SIG_ntoskrnl_NtClose, L"0,-1,ss,FileHandle->0,FileToDump->ERROR");
+//		}
+//		
+//		if(nameInformation != NULL)
+//			PoolFree(nameInformation);
+//		
+//		if(parameter != NULL)
+//			PoolFree(parameter);
+//		
+//		RemoveHandleFromList(Handle);
+//		return Orig_NtClose(Handle);
+//	}
+//	else
+//		return Orig_NtClose(Handle);
+//}
 
  NTSTATUS Hooked_NtSetInformationFile(__in HANDLE FileHandle,
 									  __out PIO_STATUS_BLOCK IoStatusBlock,
@@ -385,7 +393,7 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 				kFileName = PoolAlloc(kFileNameLength + sizeof(WCHAR));
 				if(!kFileName)
 				{
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
 					if(parameter)
 						PoolFree(parameter);
 					return statusCall;
@@ -397,9 +405,9 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 			{
 				exceptionCode = GetExceptionCode();
 				if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0")))
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, parameter);
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, parameter);
 				else
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
 				if(parameter != NULL)
 					PoolFree(parameter);
 				if(kFileName != NULL)
@@ -460,13 +468,13 @@ NTSTATUS Hooked_NtClose(__in HANDLE Handle)
 			switch(log_lvl)
 			{
 				case LOG_PARAM:
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, parameter);
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, parameter);
 				break;
 				case LOG_SUCCESS:
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, L"1,0,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, L"1,0,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
 				break;
 				default:
-					SendLogs(currentProcessId, SIG_ntdll_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtSetInformationFile, L"0,-1,ssss,FileHandle->0,OriginalName->ERROR,RenamedName->ERROR,FileInformationClass->0");
 				break;
 			}
 		}
@@ -538,10 +546,10 @@ NTSTATUS Hooked_NtOpenFile(__out PHANDLE FileHandle,
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtOpenFile, parameter);
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssss,FileHandle->0,DesiredAccess->0,ShareAccess->0,OpenOptions->0,FilePath->ERROR", exceptionCode)))
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtOpenFile, parameter);
 			else 
-				SendLogs(currentProcessId, SIG_ntdll_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,ShareAccess->0,OpenOptions->0,FilePath->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -570,26 +578,26 @@ NTSTATUS Hooked_NtOpenFile(__out PHANDLE FileHandle,
 		if(NT_SUCCESS(statusCall))
 		{			
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,FileHandle->0x%08x,DesiredAccess->0x%08x,OpenOptions->0x%x,ShareAccess->0x%x,FilePath->%wZ", kFileHandle,DesiredAccess, OpenOptions, kShareAccess, &full_path)))
+			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssss,FileHandle->0x%08x,DesiredAccess->0x%08x,ShareAccess->0x%x,OpenOptions->0x%x,FilePath->%wZ", kFileHandle, DesiredAccess, kShareAccess, OpenOptions, &full_path)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssss,FileHandle->0x%08x,DesiredAccess->0x%08x,OpenOptions->0x%x,ShareAccess->0x%x,FilePath->%wZ", statusCall, kFileHandle, DesiredAccess, OpenOptions, kShareAccess, &full_path)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssss,FileHandle->0x%08x,DesiredAccess->0x%08x,ShareAccess->0x%x,OpenOptions->0x%x,FilePath->%wZ", statusCall, kFileHandle, DesiredAccess, OpenOptions, kShareAccess, &full_path)))
 				log_lvl = LOG_PARAM;
 		}
 		
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtOpenFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtOpenFile, parameter);
 			break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtOpenFile, L"1,0,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtOpenFile, L"1,0,sssss,FileHandle->0,DesiredAccess->0,ShareAccess->0,OpenOptions->0,FilePath->ERROR");
 			break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,OpenOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtOpenFile, L"0,-1,sssss,FileHandle->0,DesiredAccess->0,ShareAccess->0,OpenOptions->0,FilePath->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -638,7 +646,7 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 					RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 				else
 				{
-					SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
+					SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
 					if(parameter != NULL)
 						PoolFree(parameter);
 					return Orig_NtDeleteFile(ObjectAttributes);
@@ -649,9 +657,9 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ss,FileName->ERROR,FileToDump->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, L"0,-1,ss,FileName->ERROR,FileToDump->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return Orig_NtDeleteFile(ObjectAttributes);
@@ -675,13 +683,13 @@ NTSTATUS Hooked_NtDeleteFile(__in POBJECT_ATTRIBUTES ObjectAttributes)
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"1,0,ss,FileName->ERROR,FileToDump->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, L"1,0,ss,FileName->ERROR,FileToDump->ERROR");
 				break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtDeleteFile, L"1,0,ss,FileName->ERROR,FileToDump->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteFile, L"1,0,ss,FileName->ERROR,FileToDump->ERROR");
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);
@@ -736,15 +744,23 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtReadFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
 		}
 		// log buffer
 		buff = PoolAlloc(BUFFER_LOG_MAX);
+
+		// Something wrong with pool allocation
+		if (!buff)
+		{
+			ASSERT(FALSE);
+			return statusCall;
+		}
+
 		if(kBufferSize)
 			CopyBuffer(buff, kBuffer, kBufferSize);
 		else
@@ -766,13 +782,13 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtReadFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"1,0,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"1,0,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 				break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
 		}
 
 		if(parameter != NULL)
@@ -857,10 +873,10 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 		__except (EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateFile, parameter);
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,ShareAccess->0,CreateDisposition->0,CreateOptions->0,FilePath->ERROR", exceptionCode)))
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateFile, parameter);
 			else 
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,ShareAccess->0,CreateDisposition->0,CreateOptions->0,FilePath->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -893,26 +909,26 @@ NTSTATUS Hooked_NtCreateFile(__out PHANDLE FileHandle,
 				AddHandleToList(kFileHandle);
 			
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssss,FileHandle->0x%08x,DesiredAccess->0x%08x,FileAttributes->0x%x,CreateDisposition->0x%x,CreateOptions->0x%x,ShareAccess->0x%x,FilePath->%wZ", kFileHandle,kDesiredAccess, FileAttributes, CreateDisposition, kCreateOptions,  kShareAccess, &full_path)))
+			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssss,FileHandle->0x%08x,DesiredAccess->0x%08x,FileAttributes->0x%x,ShareAccess->0x%x,CreateDisposition->0x%x,CreateOptions->0x%x,FilePath->%wZ", kFileHandle, kDesiredAccess, FileAttributes, kShareAccess, CreateDisposition, kCreateOptions, &full_path)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssssss,FileHandle->0x%08x,DesiredAccess->0x%08x,FileAttributes->0x%x,CreateDisposition->0x%x,CreateOptions->0x%x,ShareAccess->0x%x,FilePath->%wZ", statusCall, kFileHandle, kDesiredAccess, FileAttributes, CreateDisposition, kCreateOptions, kShareAccess, &full_path)))
+			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sssssss,FileHandle->0x%08x,DesiredAccess->0x%08x,FileAttributes->0x%x,ShareAccess->0x%x,CreateDisposition->0x%x,CreateOptions->0x%x,FilePath->%wZ", statusCall, kFileHandle, kDesiredAccess, FileAttributes, kShareAccess, CreateDisposition, kCreateOptions, &full_path)))
 				log_lvl = LOG_PARAM;
 		}
 		
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateFile, parameter);
 			break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"1,0,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateFile, L"1,0,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,ShareAccess->0,CreateDisposition->0,CreateOptions->0,FilePath->ERROR");
 			break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,CreateDisposition->0,CreateOptions->0,ShareAccess->0,FilePath->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateFile, L"0,-1,sssssss,FileHandle->0,DesiredAccess->0,FileAttributes->0,ShareAccess->0,CreateDisposition->0,CreateOptions->0,FilePath->ERROR");
 			break;
 		}
 		if(parameter != NULL)
@@ -969,9 +985,9 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 		{
 			exceptionCode = GetExceptionCode();
 			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,sss,FileHandle->0,buffer->ERROR,offset->0", exceptionCode)))
-				SendLogs(currentProcessId, SIG_ntdll_NtWriteFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtWriteFile, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntdll_NtWriteFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtWriteFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -979,6 +995,14 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 
 		// log buffer
 		buff = PoolAlloc(BUFFER_LOG_MAX);
+
+		// Something wrong with pool allocation
+		if (!buff)
+		{
+			ASSERT(FALSE);
+			return statusCall;
+		}
+
 		if(kBufferSize)
 			CopyBuffer(buff, kBuffer, kBufferSize);
 		else
@@ -1000,13 +1024,13 @@ NTSTATUS Hooked_NtWriteFile(__in HANDLE FileHandle,
 		switch(log_lvl)
 		{
 			case LOG_PARAM:
-				SendLogs(currentProcessId, SIG_ntdll_NtWriteFile, parameter);
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtWriteFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntdll_NtWriteFile, L"1,0,sss,FileHandle->0,buffer->ERROR,offset->0");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtWriteFile, L"1,0,sss,FileHandle->0,buffer->ERROR,offset->0");
 				break;
 			default:
-				SendLogs(currentProcessId, SIG_ntdll_NtWriteFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtWriteFile, L"0,-1,sss,FileHandle->0,buffer->ERROR,offset->0");
 		}
 
 		if(buff != NULL)

@@ -69,7 +69,7 @@ PPROCESS_ENTRY AllocateProcessEntry(__in ULONG new_pid)
 	pProcessEntry = PoolAlloc(sizeof(PROCESS_ENTRY));
 	if(pProcessEntry == NULL)
 	{
-		Dbg(__FUNCTION__ ": failed !\n");
+		Dbg("[%s] failed !\n", __FUNCTION__);
 		return NULL;
 	}
 
@@ -102,14 +102,14 @@ NTSTATUS StartMonitoringProcess(__in ULONG new_pid)
 
 	if(IsProcessInList(new_pid, pMonitoredProcessListHead))
 	{
-		Dbg(__FUNCTION__ ":\t%d deja dans la liste : %d\n", new_pid);
+		Dbg("[%s] Insert new process to list: %d\n", __FUNCTION__, new_pid);
 		return STATUS_SUCCESS;
 	}
 
 	pNewEntry = AllocateProcessEntry(new_pid);
 	if(pNewEntry == NULL)
 	{
-		Dbg(__FUNCTION__ ":\tAllocation failed !\n");
+		Dbg("[%s] Allocation failed !\n", __FUNCTION__);
 		return STATUS_NO_MEMORY;
 	}	
 	InsertHeadList(pMonitoredProcessListHead, &pNewEntry->entry);        
@@ -124,13 +124,13 @@ NTSTATUS AddProcessToHideToList(__in ULONG new_pid)
 		return STATUS_INVALID_PARAMETER;
 	if(IsProcessInList(new_pid, pHiddenProcessListHead))
 	{
-		Dbg(__FUNCTION__ "\t: process to hide %d deja dans la liste : %d\n", new_pid);
+		Dbg("[%s] Process to hide: %d\n", __FUNCTION__, new_pid);
 		return STATUS_SUCCESS;
 	}
 	pNewEntry = AllocateProcessEntry(new_pid);
 	if(pNewEntry == NULL)
 	{
-		Dbg(__FUNCTION__ "pNewEntry allocation failed !\n");
+		Dbg("[%s] NewEntry allocation failed !\n", __FUNCTION__);
 		return STATUS_NO_MEMORY;
 	}
 
