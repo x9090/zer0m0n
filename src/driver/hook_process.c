@@ -108,6 +108,7 @@ NTSTATUS Hooked_NtQuerySystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInf
 	
 	statusCall = Orig_NtQuerySystemInformation(SystemInformationClass, SystemInformation, SystemInformationLength, ReturnLength);
 	
+	// TODO: Implement SystemInformationClass logging for this API
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
 		Dbg("call NtQuerySystemInformation\n");
@@ -674,6 +675,7 @@ NTSTATUS Hooked_NtSetContextThread(__in HANDLE ThreadHandle,
 				log_lvl = LOG_PARAM;
 		}
 		
+		// TODO: Log the context registers as well
 		switch(log_lvl)
 		{
 			case LOG_PARAM:

@@ -769,13 +769,13 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,FileHandle->0x%08x,length->%d,offset->%d, buffer->%ws", FileHandle, Length, kByteOffset.QuadPart, buff)))
+			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,FileHandle->0x%08x,buffer->%ws,length->%d,offset->%d", FileHandle, buff, Length, kByteOffset.QuadPart)))
 				log_lvl = LOG_PARAM;
 		}
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssss,FileHandle->0x%08x,length->%d,offset->%d, buffer->%ws", statusCall, FileHandle, Length, kByteOffset.QuadPart, buff)))
+			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,FileHandle->0x%08x,buffer->%ws,length->%d,offset->%d", statusCall, FileHandle, buff, Length, kByteOffset.QuadPart)))
 				log_lvl = LOG_PARAM;
 		}
 			
@@ -785,10 +785,10 @@ NTSTATUS Hooked_NtReadFile(__in HANDLE FileHandle,
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, parameter);
 				break;
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"1,0,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"1,0,ssss,FileHandle->0,buffer->ERROR,length->0,offset->0");
 				break;
 			default:
-				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"0,-1,ssss,FileHandle->0,length->0,offset->0,buffer->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtReadFile, L"0,-1,ssss,FileHandle->0,buffer->ERROR,length->0,offset->0");
 		}
 
 		if(parameter != NULL)

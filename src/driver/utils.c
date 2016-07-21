@@ -208,15 +208,15 @@ VOID CopyBuffer(__out PWCHAR dst,
 
 	if(dst && src && size)
 	{
-		if (size >= BUFFER_LOG_MAX)
+		if (size > BUFFER_LOG_MAX)
 			size = BUFFER_LOG_MAX;
 
 		RtlZeroMemory(dst, size);
-		for(i=0; i<size; i++)
-		{
-			if (i >= (size / 2))
+		for(i=0; i< (size/2); i++)
+		{	
+			if (n >= (size / 2))
 				break;
-			
+
 			if(src[i] != 0x00)
 			{
 				if((src[i] >= 0x20) && (src[i] <= 0x7E) && (src[i] != 0x2C))

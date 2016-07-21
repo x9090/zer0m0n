@@ -20,7 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MONITOR_HOOK_INFO_H
 
 #define MONITOR_FIRSTHOOKIDX 4
-#define MONITOR_HOOKCNT 429
+#define MONITOR_HOOKCNT 431
 
 typedef enum _signature_index_t {
     SIG____process__,
@@ -278,6 +278,7 @@ typedef enum _signature_index_t {
     SIG_ntoskrnl_NtCreateDirectoryObject,
     SIG_ntoskrnl_NtCreateFile,
     SIG_ntoskrnl_NtCreateKey,
+    SIG_ntoskrnl_NtCreateMutant,
     SIG_ntoskrnl_NtCreateProcess,
     SIG_ntoskrnl_NtCreateProcessEx,
     SIG_ntoskrnl_NtCreateSection,
@@ -304,6 +305,7 @@ typedef enum _signature_index_t {
     SIG_ntoskrnl_NtOpenFile,
     SIG_ntoskrnl_NtOpenKey,
     SIG_ntoskrnl_NtOpenKeyEx,
+    SIG_ntoskrnl_NtOpenMutant,
     SIG_ntoskrnl_NtOpenProcess,
     SIG_ntoskrnl_NtOpenSection,
     SIG_ntoskrnl_NtOpenThread,

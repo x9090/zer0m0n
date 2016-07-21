@@ -36,10 +36,11 @@
 // GLOBALS
 /////////////////////////////////////////////////////////////////////////////
 
-
+typedef NTSTATUS(*NTOPENMUTANT)(PHANDLE, ACCESS_MASK, POBJECT_ATTRIBUTES);
 typedef NTSTATUS(*NTCREATEMUTANT)(PHANDLE,ACCESS_MASK,POBJECT_ATTRIBUTES,BOOLEAN);
 typedef NTSTATUS(*NTDELAYEXECUTION)(BOOLEAN, PLARGE_INTEGER);
 
+NTOPENMUTANT Orig_NtOpenMutant;
 NTCREATEMUTANT Orig_NtCreateMutant;
 NTDELAYEXECUTION Orig_NtDelayExecution;
 
@@ -47,6 +48,20 @@ NTDELAYEXECUTION Orig_NtDelayExecution;
 /////////////////////////////////////////////////////////////////////////////
 // FUNCTIONS
 /////////////////////////////////////////////////////////////////////////////
+
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//	Description :
+//		Logs open creation
+//	Parameters :
+//		See http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FMutant%2FNtOpenMutant.html
+//	Return value :
+//		See http://undocumented.ntinternals.net/index.html?page=UserMode%2FUndocumented%20Functions%2FNT%20Objects%2FMutant%2FNtOpenMutant.html
+//	Process :
+//		logs mutex handle, desired access and mutex name
+//////////////////////////////////////////////////////////////////////////////////////////////////////////////
+NTSTATUS Hooked_NtOpenMutant(__out PHANDLE MutantHandle,
+	__in ACCESS_MASK DesiredAccess,
+	__in_opt POBJECT_ATTRIBUTES ObjectAttributes);
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
