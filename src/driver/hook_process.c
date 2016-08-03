@@ -122,7 +122,7 @@ NTSTATUS Hooked_NtQuerySystemInformation(__in SYSTEM_INFORMATION_CLASS SystemInf
 				
 				while(pSystemProcessInformation->NextEntryOffset)
 				{
-					if(IsProcessInList((ULONG)pSystemProcessInformation->ProcessId, pHiddenProcessListHead))
+					if (IsProcessInList((ULONG)pSystemProcessInformation->UniqueProcessId, pHiddenProcessListHead))
 						pPrev->NextEntryOffset += pSystemProcessInformation->NextEntryOffset;
 					
 					pPrev = pSystemProcessInformation;
@@ -1225,10 +1225,10 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		__except(EXCEPTION_EXECUTE_HANDLER)
 		{
 			exceptionCode = GetExceptionCode();
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,0x%08x,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR", exceptionCode)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,0x%08x,sssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR,ProcessId->ERROR", exceptionCode)))
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, parameter);
 			else
-				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"0,-1,sssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR,ProcessId->ERROR");
 			if(parameter != NULL)
 				PoolFree(parameter);
 			return statusCall;
@@ -1237,7 +1237,7 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssssssss,ProcessHandle->0x%08x,ThreadHandle->0x%08x,DesiredAccessProcess->0x%08x,DesiredAccessThread->0x%08x,FlagsProcess->%d,FlagsThread->%d,FilePath->%wZ,CommandLine->%wZ", kProcessHandle, kThreadHandle, ProcessDesiredAccess, ThreadDesiredAccess, ProcessFlags, ThreadFlags, &ProcessParameters->ImagePathName, &ProcessParameters->CommandLine)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,sssssssss,ProcessHandle->0x%08x,ThreadHandle->0x%08x,DesiredAccessProcess->0x%08x,DesiredAccessThread->0x%08x,FlagsProcess->%d,FlagsThread->%d,FilePath->%wZ,CommandLine->%wZ,ProcessId->%d", kProcessHandle, kThreadHandle, ProcessDesiredAccess, ThreadDesiredAccess, ProcessFlags, ThreadFlags, &ProcessParameters->ImagePathName, &ProcessParameters->CommandLine, newProcessId)))
 					log_lvl = LOG_PARAM;
 			if(newProcessId)
 				StartMonitoringProcess(newProcessId);
@@ -1245,7 +1245,7 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ssssssss,ProcessHandle->0x%08x,ThreadHandle->0x%08x,DesiredAccessProcess->0x%08x,DesiredAccessThread->0x%08x,FlagsProcess->%d,FlagsThread->%d,FilePath->%wZ,CommandLine->%wZ", statusCall, kProcessHandle, kThreadHandle, ProcessDesiredAccess, ThreadDesiredAccess, ProcessFlags, ThreadFlags, &ProcessParameters->ImagePathName, &ProcessParameters->CommandLine)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,sssssssss,ProcessHandle->0x%08x,ThreadHandle->0x%08x,DesiredAccessProcess->0x%08x,DesiredAccessThread->0x%08x,FlagsProcess->%d,FlagsThread->%d,FilePath->%wZ,CommandLine->%wZ,ProcessId->%d", statusCall, kProcessHandle, kThreadHandle, ProcessDesiredAccess, ThreadDesiredAccess, ProcessFlags, ThreadFlags, &ProcessParameters->ImagePathName, &ProcessParameters->CommandLine, newProcessId)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -1256,11 +1256,11 @@ NTSTATUS Hooked_NtCreateUserProcess(__out PHANDLE ProcessHandle,
 			break;
 				
 			case LOG_SUCCESS:
-				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"0,-1,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"0,-1,sssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR,ProcessId->ERROR");
 			break;
 				
 			default:
-				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"1,0,ssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR");
+				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateUserProcess, L"1,0,sssssssss,ProcessHandle->0,ThreadHandle->0,DesiredAccessProcess->0,DesiredAccessThread->0,FlagsProcess->0,FlagsThread->0,FilePath->ERROR,CommandLine->ERROR,ProcessId->ERROR");
 			break;
 		}
 		if(parameter != NULL)

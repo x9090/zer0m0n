@@ -36,6 +36,7 @@
 #include "hooking.h"
 #include "comm.h"
 #include "hook_misc.h"
+#include "KMExploitProtectionShared.h"
 
 NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 					__in PUNICODE_STRING pRegistryPath)
@@ -76,6 +77,9 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 	if(!NT_SUCCESS(status))
 		return status;
 
+	// Initialize KMExploitProtection routines
+	// before hooks
+	KMExploitProtectionEntry(pDriverObject, pRegistryPath);
 	KeInitializeMutex(&mutex, 0);
 	HookSSDT();
 
@@ -90,6 +94,8 @@ NTSTATUS DriverEntry(__in PDRIVER_OBJECT pDriverObject,
 VOID Unload(__in PDRIVER_OBJECT pDriverObject) 
 {
 	PsRemoveLoadImageNotifyRoutine(imageCallback);
+	// Unload and free resources used by KMExploitProtection;
+	KMExploitProtectionUnload();
 	FreeList();
 	IoDeleteSymbolicLink(&usDosDeviceName);
 	IoDeleteDevice(pDriverObject->DeviceObject);

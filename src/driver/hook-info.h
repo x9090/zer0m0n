@@ -19,14 +19,15 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MONITOR_HOOK_INFO_H
 #define MONITOR_HOOK_INFO_H
 
-#define MONITOR_FIRSTHOOKIDX 4
-#define MONITOR_HOOKCNT 431
+#define MONITOR_FIRSTHOOKIDX 5
+#define MONITOR_HOOKCNT 432
 
 typedef enum _signature_index_t {
     SIG____process__,
     SIG____anomaly__,
     SIG____exception__,
     SIG____missing__,
+    SIG____exploit__,
     SIG___wmi___IWbemServices_ExecMethod,
     SIG___wmi___IWbemServices_ExecMethodAsync,
     SIG___wmi___IWbemServices_ExecQuery,
