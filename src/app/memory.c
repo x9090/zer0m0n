@@ -25,16 +25,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 static SYSTEM_INFO g_si;
 
-typedef NTSTATUS (WINAPI *NTALLOCATEVIRTUALMEMORY)(HANDLE ProcessHandle,
-    VOID **BaseAddress, ULONG_PTR ZeroBits, SIZE_T *RegionSize,
-    ULONG AllocationType, ULONG Protect);
-
-typedef NTSTATUS (WINAPI *NTFREEVIRTUALMEMORY)(HANDLE ProcessHandle,
-    CONST VOID **BaseAddress, SIZE_T *RegionSize, ULONG FreeType);
-
-NTALLOCATEVIRTUALMEMORY NtAllocateVirtualMemory;
-NTFREEVIRTUALMEMORY NtFreeVirtualMemory;
-
 uintptr_t roundup2(uintptr_t value)
 {
     value--;
@@ -66,54 +56,29 @@ void mem_init()
     GetSystemInfo(&g_si);
 }
 
-void *virtual_alloc_ex(HANDLE process_handle, void *addr,
-    uintptr_t size, uint32_t allocation_type, uint32_t protection)
-{
-    SIZE_T real_size = size;
-
-    NtAllocateVirtualMemory = (NTALLOCATEVIRTUALMEMORY)GetProcAddress(LoadLibrary("ntdll.dll"), "NtAllocateVirtualMemory");
-
-    if(NT_SUCCESS(NtAllocateVirtualMemory(process_handle, &addr, 0,
-            &real_size, allocation_type, protection)) != FALSE) {
-        return addr;
-    }
-    return NULL;
-}
-
-void *virtual_alloc(void *addr, uintptr_t size,
-    uint32_t allocation_type, uint32_t protection)
-{
-    return virtual_alloc_ex(GetCurrentProcess(), addr, size,
-        allocation_type, protection);
-}
-
-
-void *virtual_alloc_rw(void *addr, uintptr_t size)
-{
-    return virtual_alloc(addr, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
-}
-
-int virtual_free_ex(HANDLE process_handle, const void *addr, uintptr_t size, uint32_t free_type)
-{
-    NtFreeVirtualMemory = (NTFREEVIRTUALMEMORY)GetProcAddress(LoadLibrary("ntdll.dll"), "NtFreeVirtualMemory");
-    SIZE_T real_size = size;
-    if(NT_SUCCESS(NtFreeVirtualMemory(process_handle, &addr, &real_size, free_type)) != FALSE)
-        return 1;
-    return 0;
-}
-
-int virtual_free(const void *addr, uintptr_t size, uint32_t free_type)
-{
-    return virtual_free_ex(GetCurrentProcess(), addr, size, free_type);
-}
-
 void *mem_alloc(uint32_t length)
 {
-    void *ptr = virtual_alloc(NULL, length + sizeof(uintptr_t),
+    if(length == 0) {
+        return NULL;
+    }
+
+    uint32_t real_length = length + sizeof(uintptr_t);
+
+#if DEBUG_HEAPCORRUPTION
+    real_length = (real_length + 0x1fff) / 0x1000 * 0x1000;
+#endif
+
+    void *ptr = virtual_alloc(NULL, real_length,
         MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
     if(ptr == NULL) {
         return NULL;
     }
+
+#if DEBUG_HEAPCORRUPTION
+    // gflags.exe-like heap corruption functionality.
+    virtual_protect(ptr + real_length - 0x1000, 0x1000, PAGE_READONLY);
+    ptr += real_length - 0x1000 - length - sizeof(uintptr_t);
+#endif
 
     memset(ptr, 0, length + sizeof(uintptr_t));
 

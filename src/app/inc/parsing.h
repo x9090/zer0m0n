@@ -40,6 +40,7 @@ typedef struct _PARAMETERS {
 typedef struct _LOG {
 	int g_sock;
 	int pid;
+	int tid;
 	int index;
 	char *procname;
 	int sig_func;

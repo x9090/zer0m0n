@@ -62,5 +62,6 @@ CRITICAL_SECTION l_mutex;
 int init;
 
 VOID parse_logs(PTHREAD_CONTEXT p);
+VOID grant_debug_privileges(uint32_t pid);
 
 #endif

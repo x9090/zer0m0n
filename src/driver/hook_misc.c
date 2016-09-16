@@ -281,6 +281,7 @@ NTSTATUS Hooked_NtCreateMutant(__out PHANDLE MutantHandle,
 				kObjectName.Length = ObjectAttributes->ObjectName->Length;
 				kObjectName.MaximumLength = ObjectAttributes->ObjectName->MaximumLength;
 				kObjectName.Buffer = PoolAlloc(kObjectName.MaximumLength);
+				RtlSecureZeroMemory(kObjectName.Buffer, kObjectName.MaximumLength);
 				RtlCopyUnicodeString(&kObjectName, ObjectAttributes->ObjectName);
 			}
 		}
@@ -296,30 +297,37 @@ NTSTATUS Hooked_NtCreateMutant(__out PHANDLE MutantHandle,
 			return statusCall;
 		}
 		
-		if(NT_SUCCESS(statusCall))
+		// Skipped logging NULL mutex name
+		if (kObjectName.Buffer && wcslen(kObjectName.Buffer) > 0)
 		{
-			log_lvl = LOG_SUCCESS;
-			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%ws", kMutantHandle, DesiredAccess, InitialOwner, kObjectName.Buffer!=NULL?kObjectName.Buffer:L"NULL")))
-				log_lvl = LOG_PARAM;
-		}
-		else
-		{
-			log_lvl = LOG_ERROR;
-			if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%ws", statusCall, kMutantHandle, DesiredAccess, InitialOwner, kObjectName.Buffer!=NULL?kObjectName.Buffer:L"NULL")))
-				log_lvl = LOG_PARAM;
-		}
-		
-		switch(log_lvl)
-		{
+			if (NT_SUCCESS(statusCall))
+			{
+				log_lvl = LOG_SUCCESS;
+				if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"1,0,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%ws", kMutantHandle, DesiredAccess, InitialOwner, kObjectName.Buffer)))
+					log_lvl = LOG_PARAM;
+			}
+			else
+			{
+				log_lvl = LOG_ERROR;
+				if (parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE, L"0,%d,ssss,MutantHandle->0x%08x,DesiredAccess->0x%08x,InitialOwner->%d,MutantName->%ws", statusCall, kMutantHandle, DesiredAccess, InitialOwner, kObjectName.Buffer)))
+					log_lvl = LOG_PARAM;
+			}
+
+			switch (log_lvl)
+			{
 			case LOG_PARAM:
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, parameter);
-			break;
+				break;
 			case LOG_SUCCESS:
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, L"1,0,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
-			break;
+				break;
 			default:
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtCreateMutant, L"0,-1,ssss,MutantHandle->0,DesiredAccess->0,InitialOwner->0,MutantName->ERROR");
-			break;
+				break;
+			}
+
+			if (kObjectName.Buffer != NULL)
+				PoolFree(kObjectName.Buffer);
 		}
 		if(parameter != NULL)
 			PoolFree(parameter);

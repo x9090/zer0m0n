@@ -234,12 +234,10 @@ NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
 	USHORT log_lvl = LOG_ERROR;
 	PWCHAR parameter = NULL;
 	PWCHAR regkey = NULL;
-	
+	BOOL bRegKey = FALSE;
 	PAGED_CODE();
 	
 	currentProcessId = (ULONG)PsGetCurrentProcessId();
-		
-	statusCall = Orig_NtDeleteKey(KeyHandle);
 		
 	if(IsProcessInList(currentProcessId, pMonitoredProcessListHead) && (ExGetPreviousMode() != KernelMode))
 	{
@@ -247,11 +245,15 @@ NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
 		
 		parameter = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
 		
-		// get the registry key name from the KeyHandle
+		// Get the registry key name from the KeyHandle
 		regkey = PoolAlloc(MAX_SIZE * sizeof(WCHAR));
-		if(!NT_SUCCESS(reg_get_key(KeyHandle, regkey)))
-			regkey = L"";
-			
+		RtlSecureZeroMemory(regkey, MAX_SIZE * sizeof(WCHAR));
+		if (NT_SUCCESS(reg_get_key(KeyHandle, regkey)))
+			bRegKey = TRUE;
+		
+		// We can only delete the key after we obtain its registry key name
+		statusCall = Orig_NtDeleteKey(KeyHandle);
+
 		if(NT_SUCCESS(statusCall))
 		{
 			log_lvl = LOG_SUCCESS;
@@ -261,7 +263,7 @@ NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
 		else
 		{
 			log_lvl = LOG_ERROR;
-			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ss,KeyHandle->0x%08x,RegKey->%ws", KeyHandle, regkey)))
+			if(parameter && NT_SUCCESS(RtlStringCchPrintfW(parameter, MAX_SIZE,  L"0,%d,ss,KeyHandle->0x%08x,RegKey->%ws", statusCall, KeyHandle, regkey)))
 				log_lvl = LOG_PARAM;
 		}
 		
@@ -277,12 +279,16 @@ NTSTATUS Hooked_NtDeleteKey(__in HANDLE KeyHandle)
 				SendLogs(currentProcessId, SIG_ntoskrnl_NtDeleteKey, L"0,-1,ss,KeyHandle->0,RegKey->ERROR");
 			break;
 		}
-		
+
 		if(parameter != NULL)
 			PoolFree(parameter);
 		if(regkey != NULL)
 			PoolFree(regkey);
 	}
+	else
+		// Not our monitored proces, call original function
+		statusCall = Orig_NtDeleteKey(KeyHandle);
+
 	return statusCall;		
 }
 

@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <string.h>
 #include <stdarg.h>
 #include <windows.h>
-#include "bson/bson.h"
+#include "bson.h"
 #include "hooking.h"
 #include "memory.h"
 #include "misc.h"
@@ -41,7 +41,7 @@ static uint32_t g_starttick;
 static uint8_t *g_api_init;
 
 static wchar_t g_log_pipename[MAX_PATH];
-static HANDLE g_log_handle;
+static HANDLE g_log_handle = NULL;
 
 #if DEBUG
 static wchar_t g_debug_filepath[MAX_PATH];
@@ -50,20 +50,23 @@ static HANDLE g_debug_handle;
 
 static void log_raw(const char *buf, size_t length);
 
-static int open_handles(uint32_t pid)
+static int open_handles()
 {
-    do {
-        // TODO Use NtCreateFile instead of CreateFileW.
-        g_log_handle = CreateFileW(g_log_pipename, GENERIC_WRITE,
-            FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
-            FILE_FLAG_WRITE_THROUGH, NULL);
+	if (g_log_handle == NULL)
+	{
 
-        sleep(1);
-    } while (g_log_handle == INVALID_HANDLE_VALUE);
+		do {
+			// TODO Use NtCreateFile instead of CreateFileW.
+			g_log_handle = CreateFileW(g_log_pipename, GENERIC_WRITE,
+				FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
+				FILE_FLAG_WRITE_THROUGH, NULL);
 
+			sleep(50);
+		} while (g_log_handle == INVALID_HANDLE_VALUE);
+	}
 
     // The process identifier.
-    uint32_t process_identifier = pid;
+	uint32_t process_identifier = is_kernel_analysis() ? get_target_process_id() : get_current_process_id();
     log_raw((const char *) &process_identifier, sizeof(process_identifier));
 
 #if DEBUG
@@ -82,7 +85,7 @@ static void log_raw(const char *buf, size_t length)
         uint32_t written = 0; uint32_t status;
 
         status = write_file(g_log_handle, buf, length, &written);
-        /*if(NT_SUCCESS(status) == FALSE) {
+        if(NT_SUCCESS(status) == FALSE) {
             // It is possible that malware closes our pipe handle. In that
             // case we'll get an invalid handle error. Let's just open a new
             // pipe handle.
@@ -96,7 +99,7 @@ static void log_raw(const char *buf, size_t length)
                     "(last error 0x%x).", status);
                 break;
             }
-        }*/
+        }
 
         length -= written, buf += written;
     }
@@ -114,7 +117,7 @@ static void log_int64(bson *b, const char *idx, int64_t value)
     bson_append_long(b, idx, value);
 }
 
-static void log_intptr(bson *b, const char *idx, intptr_t value)
+void log_intptr(bson *b, const char *idx, intptr_t value)
 {
 #if __x86_64__
     bson_append_long(b, idx, value);
@@ -123,41 +126,46 @@ static void log_intptr(bson *b, const char *idx, intptr_t value)
 #endif
 }
 
-static void log_string(bson *b, const char *idx, const char *str, int length)
+void log_string(bson *b, const char *idx, const char *str, int length)
 {
-    if(str == NULL) {
+    if(str == NULL || length == 0) {
         bson_append_string_n(b, idx, "", 0);
         return;
     }
 
-    int ret, utf8len;
-
-    char *utf8s = utf8_string(str, length);
-    utf8len = *(int *) utf8s;
-    ret = bson_append_binary(b, idx, BSON_BIN_BINARY, utf8s+4, utf8len);
-    if(ret == BSON_ERROR) {
-        pipe("CRITICAL:Error creating bson string, error, %x utf8len %d.",
-            b->err, utf8len);
+    char *utf8s = copy_utf8_string(str, length);
+    if(utf8s != NULL) {
+        int utf8len = *(int *) utf8s;
+        if(bson_append_string_n(b, idx, utf8s+4, utf8len) == BSON_ERROR) {
+            pipe("CRITICAL:Error creating bson string, error, %x utf8len %d.",
+                b->err, utf8len);
+        }
+        mem_free(utf8s);
     }
-    mem_free(utf8s);
+    else {
+        bson_append_binary(b, idx, BSON_BIN_BINARY, "<INVALID POINTER>", 17);
+    }
 }
 
 void log_wstring(bson *b, const char *idx, const wchar_t *str, int length)
 {
-    if(str == NULL) {
+    if(str == NULL || length == 0) {
         bson_append_string_n(b, idx, "", 0);
         return;
     }
 
-    int ret, utf8len;
-    char *utf8s = utf8_wstring(str, length);
-    utf8len = *(int *) utf8s;
-    ret = bson_append_binary(b, idx, BSON_BIN_BINARY, utf8s+4, utf8len);
-    if(ret == BSON_ERROR) {
-        pipe("CRITICAL:Error creating bson wstring, error %x, utf8len %d.",
-            b->err, utf8len);
+    char *utf8s = copy_utf8_wstring(str, length);
+    if(utf8s != NULL) {
+        int utf8len = *(int *) utf8s;
+        if(bson_append_string_n(b, idx, utf8s+4, utf8len) == BSON_ERROR) {
+            pipe("CRITICAL:Error creating bson wstring, error %x, utf8len %d.",
+                b->err, utf8len);
+        }
+        mem_free(utf8s);
     }
-    mem_free(utf8s);
+    else {
+        bson_append_binary(b, idx, BSON_BIN_BINARY, "<INVALID POINTER>", 17);
+    }
 }
 
 static void log_argv(bson *b, const char *idx, int argc, const char **argv)
@@ -166,8 +174,11 @@ static void log_argv(bson *b, const char *idx, int argc, const char **argv)
     char index[5];
 
     for (int i = 0; i < argc; i++) {
-        ultostr(i, index, 10);
-        log_string(b, index, argv[i], -1);
+        char *value = copy_ptr(&argv[i]);
+        if(value != NULL) {
+            ultostr(i, index, 10);
+            log_string(b, index, value, copy_strlen(value));
+        }
     }
     bson_append_finish_array(b);
 }
@@ -179,8 +190,11 @@ static void log_wargv(bson *b, const char *idx,
     char index[5];
 
     for (int i = 0; i < argc; i++) {
-        ultostr(i, index, 10);
-        log_wstring(b, index, argv[i], -1);
+        wchar_t *value = copy_ptr(&argv[i]);
+        if(value != NULL) {
+            ultostr(i, index, 10);
+            log_wstring(b, index, value, copy_strlenW(value));
+        }
     }
 
     bson_append_finish_array(b);
@@ -195,11 +209,44 @@ static void log_buffer(bson *b, const char *idx,
         trunclength = 0;
     }
 
-    bson_append_binary(b, idx, BSON_BIN_BINARY,
-        (const char *) buf, trunclength);
+    if(range_is_readable(buf, length) != 0) {
+        bson_append_binary(b, idx, BSON_BIN_BINARY,
+            (const char *) buf, trunclength);
+    }
+    else {
+        bson_append_binary(b, idx, BSON_BIN_BINARY, "<INVALID POINTER>", 17);
+    }
 }
 
-void log_explain(uint32_t index, char *format)
+static void log_buffer_notrunc(const uint8_t *buf, uintptr_t length)
+{
+    if(buf == NULL || length == 0) {
+        return;
+    }
+
+    bson b;
+    bson_init(&b);
+    bson_append_string(&b, "type", "buffer");
+
+    if(range_is_readable(buf, length) != 0) {
+        bson_append_binary(&b, "buffer", BSON_BIN_BINARY,
+            (const char *) buf, length);
+
+        char checksum[64];
+        sha1(buf, length, checksum);
+        bson_append_string(&b, "checksum", checksum);
+    }
+    else {
+        bson_append_string(&b, "buffer", "<INVALID POINTER>");
+        bson_append_string(&b, "checksum", "???");
+    }
+
+    bson_finish(&b);
+    log_raw(bson_data(&b), bson_size(&b));
+    bson_destroy(&b);
+}
+
+void log_explain(uint32_t index)
 {
     bson b; char argidx[4];
 
@@ -213,15 +260,14 @@ void log_explain(uint32_t index, char *format)
     bson_append_string(&b, "0", "is_success");
     bson_append_string(&b, "1", "retval");
 
-    const char *fmt = format;
+    const char *fmt = sig_paramtypes(index);
 
     for (uint32_t argnum = 2; *fmt != 0; argnum++, fmt++) {
         ultostr(argnum, argidx, 10);
 
-        // Ignore buffers, they are sent over separately.
+        // Handle overrides.
         if(*fmt == '!') {
             argnum--;
-            fmt++;
             continue;
         }
 
@@ -248,7 +294,6 @@ void log_explain(uint32_t index, char *format)
 
     bson_append_finish_array(&b);
     bson_append_start_object(&b, "flags_value");
-
 
     for (uint32_t idx = 0; sig_flag_name(index, idx) != NULL; idx++) {
         const flag_repr_t *f = flag_value(sig_flag_value(index, idx));
@@ -320,15 +365,15 @@ static void _log_stacktrace(bson *b)
 #endif
 
 void log_api(uint32_t index, int is_success, uintptr_t return_value,
-    uint64_t hash, last_error_t *lasterr, char *format, ...)
+    uint64_t hash, last_error_t *lasterr, ...)
 {
     va_list args; char idx[4];
-    va_start(args, format);
+    va_start(args, lasterr);
 
     EnterCriticalSection(&g_mutex);
 
     if(g_api_init[index] == 0) {
-        log_explain(index, format);
+        log_explain(index);
         g_api_init[index] = 1;
     }
 
@@ -338,12 +383,20 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
 
     bson_init_size(&b, mem_suggested_size(1024));
     bson_append_int(&b, "I", index);
-    bson_append_int(&b, "T", 0);
-    bson_append_int(&b, "t", 0);//get_tick_count() - g_starttick);
+    bson_append_int(&b, "T", get_current_thread_id());
+    bson_append_int(&b, "t", get_tick_count() - g_starttick);
     bson_append_long(&b, "h", hash);
 
+    // If failure has been determined, then log the last error as well.
+    if(is_success == 0) {
+        bson_append_int(&b, "e", lasterr->lasterror);
+        bson_append_int(&b, "E", lasterr->nt_status);
+    }
+
 #if DEBUG
-    _log_stacktrace(&b);
+    if(index != sig_index_exception()) {
+        _log_stacktrace(&b);
+    }
 #endif
 
     bson_append_start_array(&b, "args");
@@ -352,7 +405,7 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
 
     int argnum = 2, override = 0;
 
-    for (const char *fmt = format; *fmt != 0; fmt++) {
+    for (const char *fmt = sig_paramtypes(index); *fmt != 0; fmt++) {
         ultostr(argnum++, idx, 10);
 
         // Limitation override. Instead of displaying this right away in the
@@ -365,38 +418,43 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
 
         if(*fmt == 's') {
             const char *s = va_arg(args, const char *);
-            if(s == NULL) s = "";
-            log_string(&b, idx, s, -1);
+            log_string(&b, idx, s, copy_strlen(s));
         }
         else if(*fmt == 'S') {
             int len = va_arg(args, int);
             const char *s = va_arg(args, const char *);
-            if(s == NULL) s = "", len = 0;
             log_string(&b, idx, s, len);
         }
         else if(*fmt == 'u') {
             const wchar_t *s = va_arg(args, const wchar_t *);
-            if(s == NULL) s = L"";
-            log_wstring(&b, idx, s, -1);
+            log_wstring(&b, idx, s, copy_strlenW(s));
         }
         else if(*fmt == 'U') {
             int len = va_arg(args, int);
             const wchar_t *s = va_arg(args, const wchar_t *);
-            if(s == NULL) s = L"", len = 0;
             log_wstring(&b, idx, s, len);
         }
         else if(*fmt == 'b') {
             uintptr_t len = va_arg(args, uintptr_t);
             const uint8_t *s = va_arg(args, const uint8_t *);
-            if(override == 0) {
+            if(override == 0 || len < BUFFER_LOG_MAX) {
                 log_buffer(&b, idx, s, len);
+            }
+            else {
+                log_buffer(&b, idx, NULL, 0);
+                log_buffer_notrunc(s, len);
             }
         }
         else if(*fmt == 'B') {
-            uintptr_t *len = va_arg(args, uintptr_t *);
+            uintptr_t *ptr = va_arg(args, uintptr_t *);
+            uintptr_t len = ptr != NULL ? copy_uintptr(ptr) : 0;
             const uint8_t *s = va_arg(args, const uint8_t *);
-            if(override == 0) {
-                log_buffer(&b, idx, s, len == NULL ? 0 : *len);
+            if(override == 0 || len < BUFFER_LOG_MAX) {
+                log_buffer(&b, idx, s, len);
+            }
+            else {
+                log_buffer(&b, idx, NULL, 0);
+                log_buffer_notrunc(s, len);
             }
         }
         else if(*fmt == 'i' || *fmt == 'x') {
@@ -404,24 +462,25 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
             log_int32(&b, idx, value);
         }
         else if(*fmt == 'I') {
-            int *value = va_arg(args, int *);
-            log_int32(&b, idx, value != NULL ? *value : 0);
+            uint32_t *value = va_arg(args, int *);
+            log_int32(&b, idx, value != NULL ? copy_uint32(value) : 0);
         }
         else if(*fmt == 'l' || *fmt == 'p') {
             uintptr_t value = va_arg(args, uintptr_t);
             log_intptr(&b, idx, value);
         }
         else if(*fmt == 'L' || *fmt == 'P') {
-            uintptr_t *ptr = va_arg(args, uintptr_t *);
-            log_intptr(&b, idx, ptr != NULL ? *ptr : 0);
+            uintptr_t *value = va_arg(args, uintptr_t *);
+            log_intptr(&b, idx, value != NULL ? copy_uintptr(value) : 0);
         }
         else if(*fmt == 'o') {
-            ANSI_STRING *str = va_arg(args, ANSI_STRING *);
-            if(str == NULL) {
-                log_string(&b, idx, "", 0);
+            ANSI_STRING *str = va_arg(args, ANSI_STRING *), str_;
+            if(str != NULL &&
+                    copy_bytes(&str_, str, sizeof(ANSI_STRING)) == 0) {
+                log_string(&b, idx, str_.Buffer, str_.Length);
             }
             else {
-                log_string(&b, idx, str->Buffer, str->Length);
+                log_string(&b, idx, "", 0);
             }
         }
         else if(*fmt == 'a') {
@@ -448,50 +507,51 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
                 size = &_size;
             }
 
-            if(*type == REG_NONE) {
+            switch (copy_uint32(type)) {
+            case REG_NONE:
                 log_string(&b, idx, NULL, 0);
-            }
-            else if(*type == REG_DWORD || *type == REG_DWORD_LITTLE_ENDIAN) {
-                uint32_t value = 0;
-                if(data != NULL) {
-                    value = *(uint32_t *) data;
-                }
-                log_int32(&b, idx, value);
-            }
-            else if(*type == REG_EXPAND_SZ || *type == REG_SZ ||
-                    *type == REG_MULTI_SZ) {
+                break;
+
+            case REG_DWORD:
+                log_int32(&b, idx, copy_uint32(data));
+                break;
+
+            case REG_DWORD_BIG_ENDIAN:
+                log_int32(&b, idx, our_htonl(copy_uint32(data)));
+                break;
+
+            case REG_EXPAND_SZ: case REG_SZ: case REG_MULTI_SZ:
                 if(*fmt == 'r') {
-                    uint32_t length = *size;
+                    uint32_t length = copy_uint32(size);
                     // Strings tend to be zero-terminated twice, so check for
                     // that and if that's the case, then ignore the trailing
                     // nullbyte.
                     if(data != NULL &&
-                            our_strlen((const char *) data) == length - 1) {
+                            copy_strlen((const char *) data) == length - 1) {
                         length--;
                     }
                     log_string(&b, idx, (const char *) data, length);
                 }
                 else {
-                    int32_t length = *size / sizeof(wchar_t);
+                    uint32_t length = copy_uint32(size) / sizeof(wchar_t);
                     // Strings tend to be zero-terminated twice, so check for
                     // that and if that's the case, then ignore the trailing
                     // nullbyte.
-                    if(data != NULL &&
-                            lstrlenW((const wchar_t *) data) == length - 1) {
+                    if(data != NULL && copy_strlenW(
+                            (const wchar_t *) data) == length - 1) {
                         length--;
                     }
                     log_wstring(&b, idx, (const wchar_t *) data, length);
                 }
-            }
-            else if(*type == REG_QWORD || *type == REG_QWORD_LITTLE_ENDIAN) {
-                uint64_t value = 0;
-                if(data != NULL) {
-                    value = *(uint64_t *) data;
-                }
-                log_int64(&b, idx, value);
-            }
-            else {
-                log_buffer(&b, idx, data, *size);
+                break;
+
+            case REG_QWORD:
+                log_int64(&b, idx, copy_uint64(data));
+                break;
+
+            default:
+                log_buffer(&b, idx, data, copy_uint32(size));
+                break;
             }
         }
         else if(*fmt == 'q') {
@@ -500,7 +560,8 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
         }
         else if(*fmt == 'Q') {
             LARGE_INTEGER *value = va_arg(args, LARGE_INTEGER *);
-            log_int64(&b, idx, value != NULL ? value->QuadPart : 0);
+            log_int64(&b, idx,
+                value != NULL ? copy_uint64(&value->QuadPart) : 0);
         }
         else if(*fmt == 'z') {
             bson *value = va_arg(args, bson *);
@@ -508,14 +569,40 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
                 bson_append_null(&b, idx);
             }
             else {
-                bson_append_bson(&b, idx, value);
+                bson_iterator i;
+                bson_iterator_init(&i, value);
+                bson_iterator_next(&i);
+                bson_append_element(&b, idx, &i);
             }
         }
         else if(*fmt == 'c') {
             char buf[64];
             REFCLSID rclsid = va_arg(args, REFCLSID);
             clsid_to_string(rclsid, buf);
-            log_string(&b, idx, buf, -1);
+            log_string(&b, idx, buf, strlen(buf));
+        }
+        else if(*fmt == 't') {
+            const BSTR bstr = va_arg(args, const BSTR);
+            const wchar_t *s = L""; uint32_t len = 0;
+
+            if(bstr != NULL) {
+                s = (const wchar_t *) bstr;
+                len = sys_string_length(bstr);
+            }
+
+            log_wstring(&b, idx, s, len);
+        }
+        else if(*fmt == 'v') {
+            const VARIANT *v = va_arg(args, const VARIANT *);
+            const wchar_t *s = L""; uint32_t len = 0;
+
+            // TODO Support other VARIANT types as needed.
+            if(v != NULL && v->vt == VT_BSTR && v->bstrVal != NULL) {
+                s = (const wchar_t *) v->bstrVal;
+                len = sys_string_length(v->bstrVal);
+            }
+
+            log_wstring(&b, idx, s, len);
         }
         else {
             char buf[2] = {*fmt, 0};
@@ -533,11 +620,28 @@ void log_api(uint32_t index, int is_success, uintptr_t return_value,
     bson_destroy(&b);
 }
 
-void log_new_process(int pid, char *filename)
+void log_new_process(int track)
 {
-    FILETIME st;
+    wchar_t *module_path = get_unicode_buffer();
+	wchar_t *command_line;
+
+	LOG *krnllog = get_kernel_log_ptr();
+	if (is_kernel_analysis() && krnllog != NULL)
+	{
+		command_line = commandline_from_process_handle(get_target_process());
+		MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, krnllog->procname, strlen(krnllog->procname), module_path, (MAX_PATH_W + 1) * sizeof(wchar_t));
+	}
+	else
+	{
+		command_line = GetCommandLineW();
+		GetModuleFileNameW(NULL, module_path, MAX_PATH_W);
+	}
+
+    GetLongPathNameW(module_path, module_path, MAX_PATH_W);
 
     g_starttick = GetTickCount();
+
+    FILETIME st;
     GetSystemTimeAsFileTime(&st);
 
 #if __x86_64__
@@ -546,20 +650,151 @@ void log_new_process(int pid, char *filename)
     int is_64bit = 0;
 #endif
 
-    printf("filename : %s\n", filename);
+    bson modules;
+    bson_init_size(&modules, mem_suggested_size(4096));
+    bson_append_start_array(&modules, "modules");
+    loaded_modules_enumerate(&modules);	// TODO: Support remote process module enumeration... these information do not seem to display in the front-end
+    bson_append_finish_array(&modules);
+    bson_finish(&modules);
 
-    log_api(sig_index_process(), 1, 0, 0, NULL, "iiiisui", st.dwLowDateTime,
-            st.dwHighDateTime, pid, parent_process_identifier(pid) , 
-            filename, NULL, is_64bit);
+    log_api(sig_index_process(), 1, 0, 0, NULL, st.dwLowDateTime,
+		st.dwHighDateTime, is_kernel_analysis() ? get_target_process_id() : get_current_process_id(),
+		is_kernel_analysis() ? parent_process_identifier(get_target_process()) : parent_process_identifier(get_current_process()), module_path, command_line,
+        is_64bit, track, &modules);
+
+    bson_destroy(&modules);
+    free_unicode_buffer(module_path);
 }
 
 void log_anomaly(const char *subcategory,
     const char *funcname, const char *msg)
 {
     log_api(sig_index_anomaly(), 1, 0, 0, NULL,
-        0, subcategory, funcname, msg);
+        get_current_thread_id(), subcategory, funcname, msg);
 }
 
+void log_exception(CONTEXT *ctx, EXCEPTION_RECORD *rec,
+    uintptr_t *return_addresses, uint32_t count)
+{
+    char buf[128]; bson e, r, s;
+    static int exception_count;
+
+    bson_init(&e);
+    bson_init(&r);
+    bson_init(&s);
+
+    bson_append_start_object(&e, "exception");
+    bson_append_start_object(&r, "registers");
+    bson_append_start_array(&s, "stacktrace");
+
+    if(exception_count++ == EXCEPTION_MAXCOUNT) {
+        our_snprintf(buf, sizeof(buf), "Encountered %d exceptions, quitting.",
+            exception_count);
+        log_anomaly("exception", NULL, buf);
+        ExitProcess(1);
+    }
+
+#if __x86_64__
+    static const char *regnames[] = {
+        "rax", "rcx", "rdx", "rbx", "rsp", "rbp", "rsi", "rdi",
+        "r8",  "r9",  "r10", "r11", "r12", "r13", "r14", "r15",
+        NULL,
+    };
+
+    uintptr_t regvalues[16] = {};
+
+    if(ctx != NULL) {
+        uintptr_t registers[] = {
+            ctx->Rax, ctx->Rcx, ctx->Rdx, ctx->Rbx,
+            ctx->Rsp, ctx->Rbp, ctx->Rsi, ctx->Rdi,
+            ctx->R8,  ctx->R9,  ctx->R10, ctx->R11,
+            ctx->R12, ctx->R13, ctx->R14, ctx->R15,
+        };
+        memcpy(regvalues, registers, sizeof(registers));
+    }
+#else
+    static const char *regnames[] = {
+        "eax", "ecx", "edx", "ebx", "esp", "ebp", "esi", "edi",
+        NULL,
+    };
+
+    uintptr_t regvalues[8] = {};
+
+    if(ctx != NULL) {
+        uintptr_t registers[] = {
+            ctx->Eax, ctx->Ecx, ctx->Edx, ctx->Ebx,
+            ctx->Esp, ctx->Ebp, ctx->Esi, ctx->Edi,
+        };
+        memcpy(regvalues, registers, sizeof(registers));
+    }
+#endif
+
+    for (uint32_t idx = 0; regnames[idx] != NULL; idx++) {
+        bson_append_long(&r, regnames[idx], regvalues[idx]);
+    }
+
+    char sym[512], number[20];
+
+    const uint8_t *exception_address = NULL;
+    if(rec != NULL) {
+        exception_address = (const uint8_t *) rec->ExceptionAddress;
+    }
+
+    our_snprintf(buf, sizeof(buf), "%p", exception_address);
+    bson_append_string(&e, "address", buf);
+
+    char insn[DISASM_BUFSIZ], insn_r[128];
+    if(range_is_readable(exception_address, 16) != 0) {
+        if(disasm(exception_address, insn) == 0) {
+            bson_append_string(&e, "instruction", insn);
+        }
+
+        for (uint32_t idx = 0; idx < 16; idx++) {
+            our_snprintf(insn_r + 3*idx, sizeof(insn_r), "%x ",
+                exception_address[idx]);
+        }
+        insn_r[3*16-1] = 0;
+
+        bson_append_string(&e, "instruction_r", insn_r);
+    }
+
+    symbol(exception_address, sym, sizeof(sym));
+    bson_append_string(&e, "symbol", sym);
+
+    our_snprintf(buf, sizeof(buf), "%p",
+        rec != NULL ? (uintptr_t) rec->ExceptionCode : 0);
+    bson_append_string(&e, "exception_code", buf);
+
+    for (uint32_t idx = 0; idx < count; idx++) {
+        if(return_addresses[idx] == 0) break;
+
+        ultostr(idx, number, 10);
+
+        symbol((const uint8_t *) return_addresses[idx], sym, sizeof(sym)-32);
+
+        if(sym[0] != 0) {
+            strcat(sym, " @ ");
+        }
+
+        our_snprintf(sym + our_strlen(sym), sizeof(sym) - our_strlen(sym),
+            "%p", (void *) return_addresses[idx]);
+        bson_append_string(&s, number, sym);
+    }
+
+    bson_append_finish_object(&e);
+    bson_append_finish_object(&r);
+    bson_append_finish_array(&s);
+
+    bson_finish(&e);
+    bson_finish(&r);
+    bson_finish(&s);
+
+    log_api(sig_index_exception(), 1, 0, 0, NULL, &e, &r, &s);
+
+    bson_destroy(&e);
+    bson_destroy(&r);
+    bson_destroy(&s);
+}
 
 static void *_bson_malloc(size_t length)
 {
@@ -595,10 +830,16 @@ void log_debug(const char *fmt, ...)
 
 #endif
 
-void log_init(const char *pipe_name, int pid, char *procname)
+void WINAPI log_missing_hook(const char *funcname)
+{
+    // if(hook_in_monitor() == 0) {
+        log_api(sig_index_missing(), 1, 0, 0, NULL, funcname);
+    // }
+}
+
+void log_init(const char *pipe_name, int track)
 {
     InitializeCriticalSection(&g_mutex);
-
     bson_set_heap_stuff(&_bson_malloc, &_bson_realloc, &_bson_free);
     g_api_init = virtual_alloc_rw(NULL, sig_count() * sizeof(uint8_t));
 
@@ -609,10 +850,9 @@ void log_init(const char *pipe_name, int pid, char *procname)
     pipe("FILE_NEW:%z", filepath);
     wcsncpyA(g_debug_filepath, filepath, MAX_PATH);
 #endif
-
     wcsncpyA(g_log_pipename, pipe_name, MAX_PATH);
-    open_handles(pid);
+    open_handles();
 
     log_raw("BSON\n", 5);
-    log_new_process(pid, procname);
+    log_new_process(track);
 }

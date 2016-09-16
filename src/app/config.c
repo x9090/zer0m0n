@@ -20,6 +20,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <windows.h>
 #include "config.h"
 #include "hooking.h"
+#include "native.h"
 #include "ntapi.h"
 
 static uint32_t _parse_mode(const char *mode)
@@ -43,8 +44,20 @@ static uint32_t _parse_mode(const char *mode)
         }
 
         if(strnicmp(mode, "iexplore", 8) == 0) {
-            ret |= HOOK_MODE_IEXPLORE;
+            ret |= HOOK_MODE_IEXPLORE | HOOK_MODE_EXPLOIT;
             mode += 8;
+            continue;
+        }
+
+        if(strnicmp(mode, "office", 6) == 0) {
+            ret |= HOOK_MODE_OFFICE | HOOK_MODE_EXPLOIT;
+            mode += 6;
+            continue;
+        }
+
+        if(strnicmp(mode, "pdf", 3) == 0) {
+            ret |= HOOK_MODE_PDF | HOOK_MODE_EXPLOIT;
+            mode += 3;
             continue;
         }
 
@@ -56,7 +69,7 @@ static uint32_t _parse_mode(const char *mode)
 
         // Report.. find a more proper way? At this point the pipe has not
         // yet been initialized, so.
-        MessageBox(NULL, "Invalid Monitor Mode", mode, 0);
+        message_box(NULL, "Invalid Monitor Mode", mode, 0);
     }
     return ret;
 }
@@ -64,13 +77,13 @@ static uint32_t _parse_mode(const char *mode)
 void config_read(config_t *cfg, int pid)
 {
     char buf[512], config_fname[MAX_PATH];
-    sprintf(config_fname, "C:\\cuckoo_%d.ini", pid);
+    sprintf(config_fname, "C:\\cuckoo_%lu.ini", pid);
 
     memset(cfg, 0, sizeof(config_t));
 
     FILE *fp = fopen(config_fname, "rb");
     if(fp == NULL) {
-        MessageBox(NULL, "Error fetching configuration file! This is a "
+        message_box(NULL, "Error fetching configuration file! This is a "
             "serious error. If encountered, please notify the Cuckoo "
             "Developers as this error prevents analysis.", "Cuckoo Error", 0);
         return;
@@ -122,6 +135,18 @@ void config_read(config_t *cfg, int pid)
         else if(strcmp(key, "mode") == 0) {
             cfg->mode = _parse_mode(value);
         }
+        else if(strcmp(key, "disguise") == 0) {
+            cfg->disguise = value[0] == '1';
+        }
+        else if(strcmp(key, "pipe-pid") == 0) {
+            cfg->pipe_pid = value[0] == '1';
+        }
+		else if (strcmp(key, "sample-pid") == 0) {
+			cfg->sample_pid = strtoul(value, NULL, 10);
+		}
+		else if (strcmp(key, "sample-tid") == 0) {
+			cfg->sample_tid = strtoul(value, NULL, 10);
+		}
     }
     fclose(fp);
     DeleteFile(config_fname);

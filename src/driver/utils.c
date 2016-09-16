@@ -249,11 +249,17 @@ NTSTATUS dump_file(__in UNICODE_STRING filepath,
 	DWORD i;
 	
 	filename = PoolAlloc(MAX_SIZE);
-	if(!filename)
-		return STATUS_NO_MEMORY;
+	if (!filename)
+	{
+		status = STATUS_NO_MEMORY;
+		goto Exit;
+	}
 		
-	if(!NT_SUCCESS(RtlStringCchPrintfW(filename, MAX_SIZE, L"%wZ", &filepath)))
-		return STATUS_INVALID_PARAMETER;
+	if (!NT_SUCCESS(RtlStringCchPrintfW(filename, MAX_SIZE, L"%wZ", &filepath)))
+	{
+		status = STATUS_INVALID_PARAMETER;
+		goto Exit;
+	}
 		
 	i = wcslen(filename);
 	while(filename[i] != 0x5C)
@@ -261,42 +267,60 @@ NTSTATUS dump_file(__in UNICODE_STRING filepath,
 	i++;	
 	ptr_filename = filename+i;
 	
-	if(!ptr_filename)
-		return STATUS_INVALID_PARAMETER;
+	if (!ptr_filename)
+	{
+		status = STATUS_INVALID_PARAMETER;
+		goto Exit;
+	}
 		
 	newpath = PoolAlloc(MAX_SIZE);
-	if(!newpath)
-		return STATUS_NO_MEMORY;
+	if (!newpath)
+	{
+		status = STATUS_NO_MEMORY;
+		goto Exit;
+	}
 		
 	RtlStringCchPrintfW(newpath, MAX_SIZE, L"%ws\\%ws", cuckooPath, ptr_filename);
 	RtlInitUnicodeString(&fullpath, newpath);
 	
-	if(filepath_to_dump == NULL)
-		return STATUS_INVALID_PARAMETER;
+	if (filepath_to_dump == NULL)
+	{
+		status = STATUS_INVALID_PARAMETER;
+		goto Exit;
+	}
 	
 	RtlCopyUnicodeString(filepath_to_dump, &fullpath); 
 	InitializeObjectAttributes(&objAttr, &filepath, OBJ_CASE_INSENSITIVE | OBJ_KERNEL_HANDLE, NULL, NULL);
 	
 	status = ZwCreateFile(&hFile, (SYNCHRONIZE | GENERIC_READ | GENERIC_WRITE), &objAttr, &iosb, 0, 0, FILE_SHARE_READ | FILE_SHARE_WRITE, FILE_OPEN, FILE_SYNCHRONOUS_IO_NONALERT, NULL, 0);	
-	if(!NT_SUCCESS(status))
-		return STATUS_INVALID_PARAMETER;
+	if (!NT_SUCCESS(status))
+	{
+		status = STATUS_INVALID_PARAMETER;
+		goto Exit;
+	}
 	
-	pRenameInformation = PoolAlloc(sizeof(FILE_RENAME_INFORMATION) + 2048);
+	pRenameInformation = PoolAlloc(sizeof(FILE_RENAME_INFORMATION) + fullpath.Length);
 	
 	pRenameInformation->ReplaceIfExists = TRUE;
 	pRenameInformation->RootDirectory = NULL;
-	RtlCopyMemory(pRenameInformation->FileName, fullpath.Buffer, 2048);
+	RtlCopyMemory(pRenameInformation->FileName, fullpath.Buffer, fullpath.Length);
 	pRenameInformation->FileNameLength = wcslen(pRenameInformation->FileName)*sizeof(WCHAR);
 	
+	// Rename the file specified by hFile to the new file information specified in pRenameInformation
 	status = ZwSetInformationFile(hFile, &iosb, pRenameInformation, sizeof(FILE_RENAME_INFORMATION)+pRenameInformation->FileNameLength, FileRenameInformation);
 	
 	if(!NT_SUCCESS(status))
-		return STATUS_INVALID_PARAMETER;
-	ZwClose(hFile);
-	
-	PoolFree(filename);
-	PoolFree(newpath);
-	PoolFree(pRenameInformation);
+		status = STATUS_INVALID_PARAMETER;
+
+Exit:
+	if (hFile != NULL)
+		ZwClose(hFile);
+	if (filename != NULL)
+		PoolFree(filename);
+	if (newpath != NULL)
+		PoolFree(newpath);
+	if (pRenameInformation != NULL)
+		PoolFree(pRenameInformation);
 	
 	return status;
 }

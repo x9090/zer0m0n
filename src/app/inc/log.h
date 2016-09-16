@@ -24,11 +24,13 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "bson.h"
 #include "native.h"
 
-void log_init(const char *pipe_name, int pid, char *procname);
+void log_init(const char *pipe_name, int track);
 
 void log_api(uint32_t index, int is_success, uintptr_t return_value,
-    uint64_t hash, last_error_t *lasterr, char *format, ...);
+    uint64_t hash, last_error_t *lasterr, ...);
 
+void log_intptr(bson *b, const char *idx, intptr_t value);
+void log_string(bson *b, const char *idx, const char *str, int length);
 void log_wstring(bson *b, const char *idx, const wchar_t *str, int length);
 
 void log_anomaly(const char *subcategory,

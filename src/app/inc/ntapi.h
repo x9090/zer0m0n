@@ -19,9 +19,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #ifndef MONITOR_NTAPI_H__
 #define MONITOR_NTAPI_H__
 
+#define SECURITY_WIN32
 #include <stdint.h>
 #include <windows.h>
 #include <wincrypt.h>
+#include <security.h>
 
 typedef LONG NTSTATUS;
 typedef void *PIO_APC_ROUTINE;
@@ -35,12 +37,6 @@ typedef struct _STRING {
     USHORT MaximumLength;
     PCHAR  Buffer;
 } ANSI_STRING, *PANSI_STRING;
-
-typedef struct _LSA_UNICODE_STRING {
-    USHORT Length;
-    USHORT MaximumLength;
-    PWSTR  Buffer;
-} LSA_UNICODE_STRING, *PLSA_UNICODE_STRING, UNICODE_STRING, *PUNICODE_STRING;
 
 typedef struct _IO_STATUS_BLOCK {
     union {
@@ -397,6 +393,11 @@ static inline void writetls(uint32_t index, uintptr_t value)
 
 #endif
 
+static inline PEB *get_peb()
+{
+    return (PEB *) readtls(TLS_PEB);
+}
+
 typedef struct _SECTION_IMAGE_INFORMATION {
     PVOID               TransferAddress;
     uint32_t            ZeroBits;
@@ -491,6 +492,167 @@ typedef enum _FILE_INFO_BY_HANDLE_CLASS {
     MaximumFileInfoByHandlesClass
 } FILE_INFO_BY_HANDLE_CLASS, *PFILE_INFO_BY_HANDLE_CLASS;
 
+typedef enum _SYSTEM_INFORMATION_CLASS {
+    SystemBasicInformation = 0,
+    SystemProcessorInformation = 1,
+    SystemPerformanceInformation = 2,
+    SystemTimeOfDayInformation = 3,
+    SystemPathInformation = 4,
+    SystemProcessInformation = 5,
+    SystemCallCountInformation = 6,
+    SystemDeviceInformation = 7,
+    SystemProcessorPerformanceInformation = 8,
+    SystemFlagsInformation = 9,
+    SystemCallTimeInformation = 10,
+    SystemModuleInformation = 11,
+    SystemLocksInformation = 12,
+    SystemStackTraceInformation = 13,
+    SystemPagedPoolInformation = 14,
+    SystemNonPagedPoolInformation = 15,
+    SystemHandleInformation = 16,
+    SystemObjectInformation = 17,
+    SystemPageFileInformation = 18,
+    SystemVdmInstemulInformation = 19,
+    SystemVdmBopInformation = 20,
+    SystemFileCacheInformation = 21,
+    SystemPoolTagInformation = 22,
+    SystemInterruptInformation = 23,
+    SystemDpcBehaviorInformation = 24,
+    SystemFullMemoryInformation = 25,
+    SystemLoadGdiDriverInformation = 26,
+    SystemUnloadGdiDriverInformation = 27,
+    SystemTimeAdjustmentInformation = 28,
+    SystemSummaryMemoryInformation = 29,
+    SystemMirrorMemoryInformation = 30,
+    SystemPerformanceTraceInformation = 31,
+    SystemObsolete0 = 32,
+    SystemExceptionInformation = 33,
+    SystemCrashDumpStateInformation = 34,
+    SystemKernelDebuggerInformation = 35,
+    SystemContextSwitchInformation = 36,
+    SystemRegistryQuotaInformation = 37,
+    SystemExtendServiceTableInformation = 38,
+    SystemPrioritySeperation = 39,
+    SystemVerifierAddDriverInformation = 40,
+    SystemVerifierRemoveDriverInformation = 41,
+    SystemProcessorIdleInformation = 42,
+    SystemLegacyDriverInformation = 43,
+    SystemCurrentTimeZoneInformation = 44,
+    SystemLookasideInformation = 45,
+    SystemTimeSlipNotification = 46,
+    SystemSessionCreate = 47,
+    SystemSessionDetach = 48,
+    SystemSessionInformation = 49,
+    SystemRangeStartInformation = 50,
+    SystemVerifierInformation = 51,
+    SystemVerifierThunkExtend = 52,
+    SystemSessionProcessInformation = 53,
+    SystemLoadGdiDriverInSystemSpace = 54,
+    SystemNumaProcessorMap = 55,
+    SystemPrefetcherInformation = 56,
+    SystemExtendedProcessInformation = 57,
+    SystemRecommendedSharedDataAlignment = 58,
+    SystemComPlusPackage = 59,
+    SystemNumaAvailableMemory = 60,
+    SystemProcessorPowerInformation = 61,
+    SystemEmulationBasicInformation = 62,
+    SystemEmulationProcessorInformation = 63,
+    SystemExtendedHandleInformation = 64,
+    SystemLostDelayedWriteInformation = 65,
+    SystemBigPoolInformation = 66,
+    SystemSessionPoolTagInformation = 67,
+    SystemSessionMappedViewInformation = 68,
+    SystemHotpatchInformation = 69,
+    SystemObjectSecurityMode = 70,
+    SystemWatchdogTimerHandler = 71,
+    SystemWatchdogTimerInformation = 72,
+    SystemLogicalProcessorInformation = 73,
+    SystemWow64SharedInformationObsolete = 74,
+    SystemRegisterFirmwareTableInformationHandler = 75,
+    SystemFirmwareTableInformation = 76,
+    SystemModuleInformationEx = 77,
+    SystemVerifierTriageInformation = 78,
+    SystemSuperfetchInformation = 79,
+    SystemMemoryListInformation = 80,
+    SystemFileCacheInformationEx = 81,
+    SystemThreadPriorityClientIdInformation = 82,
+    SystemProcessorIdleCycleTimeInformation = 83,
+    SystemVerifierCancellationInformation = 84,
+    SystemProcessorPowerInformationEx = 85,
+    SystemRefTraceInformation = 86,
+    SystemSpecialPoolInformation = 87,
+    SystemProcessIdInformation = 88,
+    SystemErrorPortInformation = 89,
+    SystemBootEnvironmentInformation = 90,
+    SystemHypervisorInformation = 91,
+    SystemVerifierInformationEx = 92,
+    SystemTimeZoneInformation = 93,
+    SystemImageFileExecutionOptionsInformation = 94,
+    SystemCoverageInformation = 95,
+    SystemPrefetchPatchInformation = 96,
+    SystemVerifierFaultsInformation = 97,
+    SystemSystemPartitionInformation = 98,
+    SystemSystemDiskInformation = 99,
+    SystemProcessorPerformanceDistribution = 100,
+    SystemNumaProximityNodeInformation = 101,
+    SystemDynamicTimeZoneInformation = 102,
+    SystemCodeIntegrityInformation = 103,
+    SystemProcessorMicrocodeUpdateInformation = 104,
+    SystemProcessorBrandString = 105,
+    SystemVirtualAddressInformation = 106,
+    SystemLogicalProcessorAndGroupInformation = 107,
+    SystemProcessorCycleTimeInformation = 108,
+    SystemStoreInformation = 109,
+    SystemRegistryAppendString = 110,
+    SystemAitSamplingValue = 111,
+    SystemVhdBootInformation = 112,
+    SystemCpuQuotaInformation = 113,
+    SystemNativeBasicInformation = 114,
+    SystemErrorPortTimeouts = 115,
+    SystemLowPriorityIoInformation = 116,
+    SystemBootEntropyInformation = 117,
+    SystemVerifierCountersInformation = 118,
+    SystemPagedPoolInformationEx = 119,
+    SystemSystemPtesInformationEx = 120,
+    SystemNodeDistanceInformation = 121,
+    SystemAcpiAuditInformation = 122,
+    SystemBasicPerformanceInformation = 123,
+    SystemQueryPerformanceCounterInformation = 124,
+    SystemSessionBigPoolInformation = 125,
+    SystemBootGraphicsInformation = 126,
+    SystemScrubPhysicalMemoryInformation = 127,
+    SystemBadPageInformation = 128,
+    SystemProcessorProfileControlArea = 129,
+    SystemCombinePhysicalMemoryInformation = 130,
+    SystemEntropyInterruptTimingInformation = 131,
+    SystemConsoleInformation = 132,
+    SystemPlatformBinaryInformation = 133,
+    SystemPolicyInformation = 134,
+    SystemHypervisorProcessorCountInformation = 135,
+    SystemDeviceDataInformation = 136,
+    SystemDeviceDataEnumerationInformation = 137,
+    SystemMemoryTopologyInformation = 138,
+    SystemMemoryChannelInformation = 139,
+    SystemBootLogoInformation = 140,
+    SystemProcessorPerformanceInformationEx = 141,
+    SystemSpare0 = 142,
+    SystemSecureBootPolicyInformation = 143,
+    SystemPageFileInformationEx = 144,
+    SystemSecureBootInformation = 145,
+    SystemEntropyInterruptTimingRawInformation = 146,
+    SystemPortableWorkspaceEfiLauncherInformation = 147,
+    SystemFullProcessInformation = 148,
+    SystemKernelDebuggerInformationEx = 149,
+    SystemBootMetadataInformation = 150,
+    SystemSoftRebootInformation = 151,
+    SystemElamCertificateInformation = 152,
+    SystemOfflineDumpConfigInformation = 153,
+    SystemProcessorFeaturesInformation = 154,
+    SystemRegistryReconciliationInformation = 155,
+    SystemEdidInformation = 156,
+    MaxSystemInfoClass = 157
+} SYSTEM_INFORMATION_CLASS, *PSYSTEM_INFORMATION_CLASS;
+
 typedef struct _KEY_NAME_INFORMATION {
     ULONG NameLength;
     WCHAR Name[1];
@@ -513,8 +675,6 @@ typedef struct _FILE_PIPE_INFORMATION {
     ULONG ReadMode;
     ULONG CompletionMode;
 } FILE_PIPE_INFORMATION, *PFILE_PIPE_INFORMATION;
-
-typedef int EXTENDED_NAME_FORMAT;
 
 typedef struct _LDR_DLL_UNLOADED_NOTIFICATION_DATA {
     ULONG Flags;
@@ -541,6 +701,21 @@ typedef VOID (CALLBACK LDR_DLL_NOTIFICATION_FUNCTION)(
     ULONG NotificationReason,
     const LDR_DLL_NOTIFICATION_DATA *NotificationData,
     VOID *Context);
+
+typedef enum _TASKDIALOG_COMMON_BUTTON_FLAGS {
+    TDCBF_OK_BUTTON         = 0x0001,
+    TDCBF_YES_BUTTON        = 0x0002,
+    TDCBF_NO_BUTTON         = 0x0004,
+    TDCBF_CANCEL_BUTTON     = 0x0008,
+    TDCBF_RETRY_BUTTON      = 0x0010,
+    TDCBF_CLOSE_BUTTON      = 0x0020
+} TASKDIALOG_COMMON_BUTTON_FLAGS;
+
+typedef enum _SHUTDOWN_ACTION {
+    ShutdownNoReboot,
+    ShutdownReboot,
+    ShutdownPowerOff
+} SHUTDOWN_ACTION, *PSHUTDOWN_ACTION;
 
 static inline UNICODE_STRING *unistr_from_objattr(OBJECT_ATTRIBUTES *obj)
 {
@@ -570,5 +745,14 @@ static inline UNICODE_STRING *unistr_from_objattr(OBJECT_ATTRIBUTES *obj)
 
 #define LDR_DLL_NOTIFICATION_REASON_LOADED 1
 #define LDR_DLL_NOTIFICATION_REASON_UNLOADED 2
+
+#define FILE_SUPERSEDED                   0x00000000
+#define FILE_OPENED                       0x00000001
+#define FILE_CREATED                      0x00000002
+#define FILE_OVERWRITTEN                  0x00000003
+#define FILE_EXISTS                       0x00000004
+#define FILE_DOES_NOT_EXIST               0x00000005
+
+#define MOD_NOREPEAT 0x4000
 
 #endif

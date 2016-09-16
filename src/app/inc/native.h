@@ -22,6 +22,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include <stdint.h>
 #include <windows.h>
 #include "ntapi.h"
+#include "parsing.h" // Required LOG structure definitions
 
 typedef struct _last_error_t {
     uint32_t nt_status;
@@ -34,7 +35,7 @@ typedef struct _last_error_t {
 #define MEMORY_BASIC_INFORMATION_CROSS MEMORY_BASIC_INFORMATION
 #endif
 
-int native_init();
+int native_init(BOOL bKernelAnalysis, LOG *krnllog);
 
 int virtual_query_ex(HANDLE process_handle, const void *addr,
     MEMORY_BASIC_INFORMATION_CROSS *mbi);
@@ -103,5 +104,16 @@ HANDLE get_current_process();
 uint32_t get_current_process_id();
 HANDLE get_current_thread();
 uint32_t get_current_thread_id();
+HANDLE get_target_process();
+uint32_t get_target_process_id();
+HANDLE get_target_thread();
+BOOL is_kernel_analysis();
+LOG *get_kernel_log_ptr();
+
+uint32_t get_window_thread_process_id(HWND hwnd, uint32_t *pid);
+int message_box(HWND hwnd, const char *body, const char *title, int flags);
+
+HANDLE open_thread(uint32_t desired_mask, uint32_t thread_identifier);
+uint32_t resume_thread(HANDLE thread_handle);
 
 #endif

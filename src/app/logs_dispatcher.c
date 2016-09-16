@@ -36,7 +36,11 @@
 #include "parsing.h"
 #include "config.h"
 #include "log.h"
+#include "misc.h"
+#include "hooking.h"
 #include "hook-info.h"
+#include "native.h"
+#include "memory.h"
 
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -102,6 +106,58 @@ int main(void)
 	}
 }
 
+//////////////////////////////////////////////////////////////////////////
+//		Description: Grant debug privileges
+//
+//////////////////////////////////////////////////////////////////////////
+void grant_debug_privileges(uint32_t pid)
+{
+	HANDLE token_handle, process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+
+	if (OpenProcessToken(process_handle, TOKEN_ALL_ACCESS,
+		&token_handle) == 0) {
+		printf("[-] Error obtaining process token: %ld\n", GetLastError());
+		return;
+	}
+
+	LUID original_luid;
+	if (LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &original_luid) == 0) {
+		printf("[-] Error obtaining original luid: %ld\n", GetLastError());
+		CloseHandle(process_handle);
+		return;
+	}
+
+	TOKEN_PRIVILEGES token_privileges;
+	token_privileges.PrivilegeCount = 1;
+	token_privileges.Privileges[0].Luid = original_luid;
+	token_privileges.Privileges[0].Attributes = SE_PRIVILEGE_ENABLED;
+
+	if (AdjustTokenPrivileges(token_handle, FALSE, &token_privileges, 0, NULL,
+		NULL) == 0) {
+		printf("[-] Error adjusting token privileges: %ld\n", GetLastError());
+	}
+
+	CloseHandle(token_handle);
+	CloseHandle(process_handle);
+}
+
+//////////////////////////////////////////////////////////////////////////
+//		Description: Dummy hook & unhook routines
+//////////////////////////////////////////////////////////////////////////
+void monitor_hook(const char *library, void *module_handle)
+{
+	UNREFERENCED_PARAMETER(library);
+	UNREFERENCED_PARAMETER(module_handle);
+	return;
+}
+
+void monitor_unhook(const char *library, void *module_handle)
+{
+	UNREFERENCED_PARAMETER(library);
+	UNREFERENCED_PARAMETER(module_handle);
+	return;
+}
+
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //      Description : retrieve logs from kernel, parse them and send them to the cuckoo machine host
 //
@@ -128,6 +184,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 	ULONG_PTR key;
 	BOOL result;
 	HRESULT hr;
+	last_error_t lasterror;
 
 	context = *p;
 
@@ -140,11 +197,16 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 	log.fmt = NULL;
 	log.arguments = NULL;
 
+	// Since we are opening target process with different user account (guest)
+	// we will not be able to get the process handle without SeDebugPrivilege
+	// In other words, if SeDebugPrivilege is not enabled in this process, g_target_process == NULL
+	grant_debug_privileges(GetCurrentProcessId());
+
 	while(TRUE)
 	{
 		
 		memset(&msg->Ovlp, 0, sizeof(OVERLAPPED));
-		hr = FilterGetMessage(context.hPort,&msg->MessageHeader, sizeof(KERNEL_MESSAGE), &msg->Ovlp);
+		hr = FilterGetMessage(context.hPort, &msg->MessageHeader, sizeof(KERNEL_MESSAGE), &msg->Ovlp);
 		if(hr != HRESULT_FROM_WIN32(ERROR_IO_PENDING))
 			break;
 		result = GetQueuedCompletionStatus(context.completion, &outsize, &key, &pOvlp, INFINITE);
@@ -176,44 +238,96 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		if(isProcessMonitoredByPid(log.pid) == -1)
 		{
 			EnterCriticalSection(&l_mutex);
-			if(isProcessMonitoredByPid(log.pid) == -1)
+
+			// We only do pre-intiailization the log pipe config once
+			if(!init)
 			{
-				// notifies analyzer.py
-				if((log.pid != 4) && init)
-				{
-					pipe("KPROCESS:%d", log.pid);
-				}
-
-				if(!init)
-				{
-					config_read(&cfg, log.pid);
-					pipe_init(cfg.pipe_name);
-					init_func();
-					init = 1;
-					printf("init ok\n");
-				}
-
-				// get process name
-				size = getsize(ptr_msg, msg->message, 0x2C);
-				log.procname = malloc(size+1);
-				log.procname[size] = 0x0;
-				memcpy(log.procname, msg->message+ptr_msg, size);
-				ptr_msg += size+1;
-				printf("procname : %s\n", log.procname);
-				printf("pipename : %s\n", cfg.logpipe);
-				log_init(cfg.logpipe, log.pid, log.procname);
-
-				if(startMonitoringProcess(log.pid) == -1)
-					printf("[!] Could not add %d\n",log.pid);
-				
-				printf("[+] New PID %d\n",log.pid);	
+				// Code referred from cuckoo-monitor/src/monitor.c
+				config_read(&cfg, log.pid);
+				// Save thread identifier for initialization in native_init
+				log.tid = cfg.sample_tid;
+				pipe_init(cfg.pipe_name, log.pid);
+				// Dummy hook init, to initialize capstone 
+				hook_init(GetModuleHandleA("kernel32.dll"));
+				// Needed for some native APIs
+				native_init(TRUE, &log);
+				// Needed to initialize Capstone
+				hook_init2();
+				misc_init(cfg.shutdown_mutex);
+				// Register dummy hook routine called during DLL load via callback (LdrRegisterDllNotification)
+				misc_set_hook_library(&monitor_hook, &monitor_unhook);
 			}
-			else
+
+			// get process name
+			size = getsize(ptr_msg, msg->message, 0x2C);
+			log.procname = malloc(size+1);
+			log.procname[size] = 0x0;
+			memcpy(log.procname, msg->message+ptr_msg, size);
+			ptr_msg += size+1;
+			printf("[+] procname : %s\n", log.procname);
+
+			// We only initialize the log pipe config once
+			if (!init)
 			{
-				// skip process name
-				size = getsize(ptr_msg, msg->message, 0x2C);
-				ptr_msg += size+1;
+				// Notifies behavior.py about the new process event within log_init
+				log_init(cfg.logpipe, cfg.track);
+				// Notifies analyzer.py monitoring list
+				pipe("KPROCESS:%d", log.pid);
+				init = 1;
+				printf("[+] pipename : %s\n", cfg.logpipe);
+				printf("[+] Log initialization ok\n");
 			}
+			// The first process will be logged within log_init
+			else if ((log.pid != 4) && init)	
+			{
+#if __x86_64__
+				int is_64bit = 1;
+#else
+				int is_64bit = 0;
+#endif
+				FILETIME st;
+				uint32_t pid, ppid;
+				wchar_t *module_path = NULL;
+				wchar_t *command_line = NULL;
+				HANDLE process_handle = OpenProcess(PROCESS_ALL_ACCESS, FALSE, log.pid);
+				GetSystemTimeAsFileTime(&st);
+				// Notifies analyzer.py monitoring list
+				pipe("KPROCESS:%d", log.pid);
+				// Notifies behavior.py there is a new process event
+				if (process_handle)
+				{
+					pid = (uint32_t)log.pid;
+					ppid = parent_process_identifier(process_handle);
+					command_line = commandline_from_process_handle(process_handle);
+					module_path = get_unicode_buffer();
+					memset(module_path, 0, (MAX_PATH_W + 1) * sizeof(wchar_t));
+					MultiByteToWideChar(CP_THREAD_ACP, MB_PRECOMPOSED, log.procname, strlen(log.procname), module_path, (MAX_PATH_W + 1) * sizeof(wchar_t));
+					log_api(sig_index_process(), 1, 0, 0, NULL,
+						st.dwLowDateTime,
+						st.dwHighDateTime,
+						pid,            // pid
+						ppid,           // ppid
+						module_path,    // module path
+						command_line,   // command line
+						is_64bit,       // 64bit
+						cfg.track,      // track
+						NULL);          // loaded modules
+
+					free_unicode_buffer(module_path);
+					free_unicode_buffer(command_line);
+					CloseHandle(process_handle);
+				}
+				else
+				{
+					printf("[-] Failed to get process handle (0x%x)\n", (unsigned int)GetLastError());
+				}
+			}
+
+			// Adds to logs_dispatcher monitoring list
+			if(startMonitoringProcess(log.pid) == -1)
+				printf("[-] Could not add %d\n",log.pid);
+
+			printf("[+] New PID %d\n",log.pid);	
 			LeaveCriticalSection(&l_mutex);
 		}
 		else
@@ -237,6 +351,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		log.ret = retrieve_int(msg->message+ptr_msg, size);
 
 		// retrieve format parameters 
+		// FIXME: This can be dropped in the later version
 		ptr_msg += size+1;
 		size = getsize(ptr_msg, msg->message, 0x2C);
 		log.fmt = malloc(size+1);
@@ -249,66 +364,66 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		if(log.nb_arguments)
 			log.arguments = (PARAMETERS*)malloc(log.nb_arguments * sizeof(PARAMETERS));
 		
-
 		// for the moment, we only have 10 arguments/values maximum to log
+		set_last_error(&lasterror);
 		switch(log.nb_arguments)
 		{
 			case 0:
-				log_api(log.sig_func,log.success,log.ret, 0, NULL,log.fmt);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror);
 			break;
 			
 			case 1:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value);
 			break;
 			
 			case 2:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				if((log.sig_func == SIG_ntdll_NtDeleteFile) || (log.sig_func == SIG_kernel32_DeleteFileW) || (log.sig_func == SIG_ntdll_NtClose)) // don't log the last argument which is the filepath to dump !
-					log_api(log.sig_func,log.success,log.ret,0,NULL,"s",log.arguments[0].value);
+				if((log.sig_func == SIG_ntoskrnl_NtDeleteFile) || (log.sig_func == SIG_kernel32_DeleteFileW) || (log.sig_func == SIG_ntoskrnl_NtClose)) // don't log the last argument which is the filepath to dump !
+					log_api(log.sig_func,log.success,log.ret,0,&lasterror,"s",log.arguments[0].value);
 				else
-					log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value);
+					log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value);
 			break;
 			
 			case 3:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value);
 			
 			break;
 
 			case 4:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value);
 			break;
 
 			case 5:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value);
 			break;
 
 			case 6:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value);
 			break;
 
 			case 7:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value);
 			break;
 
 			case 8:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value);
 			break;
 
 			case 9:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value,log.arguments[8].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value,log.arguments[8].value);
 			break;
 
 			case 10:
 				retrieve_parameters(log.nb_arguments, msg->message, ptr_msg, size, log.arguments);
-				log_api(log.sig_func,log.success,log.ret,0,NULL,log.fmt,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value,log.arguments[8].value,log.arguments[9].value);
+				log_api(log.sig_func,log.success,log.ret,0,&lasterror,log.arguments[0].value,log.arguments[1].value,log.arguments[2].value,log.arguments[3].value,log.arguments[4].value,log.arguments[5].value,log.arguments[6].value,log.arguments[7].value,log.arguments[8].value,log.arguments[9].value);
 			break;
 
 			default:
@@ -316,7 +431,7 @@ VOID parse_logs(PTHREAD_CONTEXT p)
 		}
 
 		// if NtDeleteFile() is called, notifies cuckoo that a file has to be dumped
-		if(((log.sig_func == SIG_ntdll_NtDeleteFile) || (log.sig_func == SIG_kernel32_DeleteFileW) || (log.sig_func == SIG_ntdll_NtClose)) && !log.ret)
+		if(((log.sig_func == SIG_ntoskrnl_NtDeleteFile) || (log.sig_func == SIG_kernel32_DeleteFileW) || (log.sig_func == SIG_ntoskrnl_NtClose)) && !log.ret)
 		{
 			pw_pathfile = (PWCHAR)malloc(1024*sizeof(WCHAR));
 			mbstowcs(pw_pathfile, log.arguments[1].value, strlen(log.arguments[1].value)+1);

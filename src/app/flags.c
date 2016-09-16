@@ -26,85 +26,11 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "log.h"
 #include "ntapi.h"
 
+// THREAD_ALERT is not defined in winnt.h
+// Manually defined it here
+// Ref: pstypes.h
+#define THREAD_ALERT                     0x0004
 
-static const flag_repr_t _NtQueryValueKey_reg_type_value[] = {
-    {REG_NONE, "REG_NONE"},
-    {REG_SZ, "REG_SZ"},
-    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
-    {REG_BINARY, "REG_BINARY"},
-    {REG_DWORD, "REG_DWORD"},
-    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
-    {REG_LINK, "REG_LINK"},
-    {REG_MULTI_SZ, "REG_MULTI_SZ"},
-    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
-    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
-    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
-    {REG_QWORD, "REG_QWORD"},
-    {0, NULL},
-};
-
-static const flag_repr_t _NtQueryValueKey_reg_type_bitmask[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _RegQueryValueExW_lpType_value[] = {
-    {REG_NONE, "REG_NONE"},
-    {REG_SZ, "REG_SZ"},
-    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
-    {REG_BINARY, "REG_BINARY"},
-    {REG_DWORD, "REG_DWORD"},
-    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
-    {REG_LINK, "REG_LINK"},
-    {REG_MULTI_SZ, "REG_MULTI_SZ"},
-    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
-    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
-    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
-    {REG_QWORD, "REG_QWORD"},
-    {0, NULL},
-};
-
-static const flag_repr_t _RegQueryValueExW_lpType_bitmask[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _RegQueryValueExA_lpType_value[] = {
-    {REG_NONE, "REG_NONE"},
-    {REG_SZ, "REG_SZ"},
-    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
-    {REG_BINARY, "REG_BINARY"},
-    {REG_DWORD, "REG_DWORD"},
-    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
-    {REG_LINK, "REG_LINK"},
-    {REG_MULTI_SZ, "REG_MULTI_SZ"},
-    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
-    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
-    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
-    {REG_QWORD, "REG_QWORD"},
-    {0, NULL},
-};
-
-static const flag_repr_t _RegQueryValueExA_lpType_bitmask[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _NtAllocateVirtualMemory_Protect_value[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _NtAllocateVirtualMemory_Protect_bitmask[] = {
-    {PAGE_EXECUTE, "PAGE_EXECUTE"},
-    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
-    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
-    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
-    {PAGE_NOACCESS, "PAGE_NOACCESS"},
-    {PAGE_READONLY, "PAGE_READONLY"},
-    {PAGE_READWRITE, "PAGE_READWRITE"},
-    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
-    {PAGE_GUARD, "PAGE_GUARD"},
-    {PAGE_NOCACHE, "PAGE_NOCACHE"},
-    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
-    {0, NULL},
-};
 
 static const flag_repr_t _InternetQueryOptions_value[] = {
     {INTERNET_OPTION_CALLBACK, "INTERNET_OPTION_CALLBACK"},
@@ -200,7 +126,38 @@ static const flag_repr_t _InternetQueryOptions_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _RegSetValueExA_dwType_value[] = {
+static const flag_repr_t _ioctlsocket_cmd_value[] = {
+    {FIONREAD, "FIONREAD"},
+    {FIONBIO, "FIONBIO"},
+    {FIOASYNC, "FIOASYNC"},
+    {SIOCSHIWAT, "SIOCSHIWAT"},
+    {SIOCGHIWAT, "SIOCGHIWAT"},
+    {SIOCSLOWAT, "SIOCSLOWAT"},
+    {SIOCGLOWAT, "SIOCGLOWAT"},
+    {SIOCATMARK, "SIOCATMARK"},
+    {0, NULL},
+};
+
+static const flag_repr_t _ioctlsocket_cmd_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtMapViewOfSection_AllocationType_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtMapViewOfSection_AllocationType_bitmask[] = {
+    {MEM_COMMIT, "MEM_COMMIT"},
+    {MEM_RESERVE, "MEM_RESERVE"},
+    {MEM_RESET, "MEM_RESET"},
+    {MEM_LARGE_PAGES, "MEM_LARGE_PAGES"},
+    {MEM_PHYSICAL, "MEM_PHYSICAL"},
+    {MEM_TOP_DOWN, "MEM_TOP_DOWN"},
+    {MEM_WRITE_WATCH, "MEM_WRITE_WATCH"},
+    {0, NULL},
+};
+
+static const flag_repr_t _RegQueryValueExA_lpType_value[] = {
     {REG_NONE, "REG_NONE"},
     {REG_SZ, "REG_SZ"},
     {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
@@ -216,70 +173,116 @@ static const flag_repr_t _RegSetValueExA_dwType_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _RegSetValueExA_dwType_bitmask[] = {
+static const flag_repr_t _RegQueryValueExA_lpType_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _FILE_INFORMATION_CLASS_value[] = {
-    {FileDirectoryInformation, "FileDirectoryInformation"},
-    {FileFullDirectoryInformation, "FileFullDirectoryInformation"},
-    {FileBothDirectoryInformation, "FileBothDirectoryInformation"},
-    {FileBasicInformation, "FileBasicInformation"},
-    {FileStandardInformation, "FileStandardInformation"},
-    {FileInternalInformation, "FileInternalInformation"},
-    {FileEaInformation, "FileEaInformation"},
-    {FileAccessInformation, "FileAccessInformation"},
-    {FileNameInformation, "FileNameInformation"},
-    {FileRenameInformation, "FileRenameInformation"},
-    {FileLinkInformation, "FileLinkInformation"},
-    {FileNamesInformation, "FileNamesInformation"},
-    {FileDispositionInformation, "FileDispositionInformation"},
-    {FilePositionInformation, "FilePositionInformation"},
-    {FileFullEaInformation, "FileFullEaInformation"},
-    {FileModeInformation, "FileModeInformation"},
-    {FileAlignmentInformation, "FileAlignmentInformation"},
-    {FileAllInformation, "FileAllInformation"},
-    {FileAllocationInformation, "FileAllocationInformation"},
-    {FileEndOfFileInformation, "FileEndOfFileInformation"},
-    {FileAlternateNameInformation, "FileAlternateNameInformation"},
-    {FileStreamInformation, "FileStreamInformation"},
-    {FilePipeInformation, "FilePipeInformation"},
-    {FilePipeLocalInformation, "FilePipeLocalInformation"},
-    {FilePipeRemoteInformation, "FilePipeRemoteInformation"},
-    {FileMailslotQueryInformation, "FileMailslotQueryInformation"},
-    {FileMailslotSetInformation, "FileMailslotSetInformation"},
-    {FileCompressionInformation, "FileCompressionInformation"},
-    {FileObjectIdInformation, "FileObjectIdInformation"},
-    {FileCompletionInformation, "FileCompletionInformation"},
-    {FileMoveClusterInformation, "FileMoveClusterInformation"},
-    {FileQuotaInformation, "FileQuotaInformation"},
-    {FileReparsePointInformation, "FileReparsePointInformation"},
-    {FileNetworkOpenInformation, "FileNetworkOpenInformation"},
-    {FileAttributeTagInformation, "FileAttributeTagInformation"},
-    {FileTrackingInformation, "FileTrackingInformation"},
-    {FileIdBothDirectoryInformation, "FileIdBothDirectoryInformation"},
-    {FileIdFullDirectoryInformation, "FileIdFullDirectoryInformation"},
-    {FileValidDataLengthInformation, "FileValidDataLengthInformation"},
-    {FileShortNameInformation, "FileShortNameInformation"},
-    {FileIoCompletionNotificationInformation, "FileIoCompletionNotificationInformation"},
-    {FileIoStatusBlockRangeInformation, "FileIoStatusBlockRangeInformation"},
-    {FileIoPriorityHintInformation, "FileIoPriorityHintInformation"},
-    {FileSfioReserveInformation, "FileSfioReserveInformation"},
-    {FileSfioVolumeInformation, "FileSfioVolumeInformation"},
-    {FileHardLinkInformation, "FileHardLinkInformation"},
-    {FileProcessIdsUsingFileInformation, "FileProcessIdsUsingFileInformation"},
-    {FileNormalizedNameInformation, "FileNormalizedNameInformation"},
-    {FileNetworkPhysicalNameInformation, "FileNetworkPhysicalNameInformation"},
-    {FileIdGlobalTxDirectoryInformation, "FileIdGlobalTxDirectoryInformation"},
-    {FileIsRemoteDeviceInformation, "FileIsRemoteDeviceInformation"},
-    {FileAttributeCacheInformation, "FileAttributeCacheInformation"},
-    {FileNumaNodeInformation, "FileNumaNodeInformation"},
-    {FileStandardLinkInformation, "FileStandardLinkInformation"},
-    {FileRemoteProtocolInformation, "FileRemoteProtocolInformation"},
+static const flag_repr_t _NtAllocateVirtualMemory_Protect_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _FILE_INFORMATION_CLASS_bitmask[] = {
+static const flag_repr_t _NtAllocateVirtualMemory_Protect_bitmask[] = {
+    {PAGE_EXECUTE, "PAGE_EXECUTE"},
+    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
+    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
+    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
+    {PAGE_NOACCESS, "PAGE_NOACCESS"},
+    {PAGE_READONLY, "PAGE_READONLY"},
+    {PAGE_READWRITE, "PAGE_READWRITE"},
+    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
+    {PAGE_GUARD, "PAGE_GUARD"},
+    {PAGE_NOCACHE, "PAGE_NOCACHE"},
+    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
+    {0, NULL},
+};
+
+static const flag_repr_t _SectionDesiredAccess_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _SectionDesiredAccess_bitmask[] = {
+    {SECTION_QUERY, "SECTION_QUERY"},
+    {SECTION_MAP_WRITE, "SECTION_MAP_WRITE"},
+    {SECTION_MAP_READ, "SECTION_MAP_READ"},
+    {SECTION_MAP_EXECUTE, "SECTION_MAP_EXECUTE"},
+    {SECTION_EXTEND_SIZE, "SECTION_EXTEND_SIZE"},
+    {SECTION_ALL_ACCESS, "SECTION_ALL_ACCESS"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtOpenSection_DesiredAccess_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtOpenSection_DesiredAccess_bitmask[] = {
+    {SECTION_QUERY, "SECTION_QUERY"},
+    {SECTION_MAP_WRITE, "SECTION_MAP_WRITE"},
+    {SECTION_MAP_READ, "SECTION_MAP_READ"},
+    {SECTION_MAP_EXECUTE, "SECTION_MAP_EXECUTE"},
+    {SECTION_EXTEND_SIZE, "SECTION_EXTEND_SIZE"},
+    {SECTION_ALL_ACCESS, "SECTION_ALL_ACCESS"},
+    {0, NULL},
+};
+
+static const flag_repr_t _RegisterHotKey_fsModifiers_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _RegisterHotKey_fsModifiers_bitmask[] = {
+    {MOD_ALT, "MOD_ALT"},
+    {MOD_CONTROL, "MOD_CONTROL"},
+    {MOD_NOREPEAT, "MOD_NOREPEAT"},
+    {MOD_SHIFT, "MOD_SHIFT"},
+    {MOD_WIN, "MOD_WIN"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateSection_SectionPageProtection_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateSection_SectionPageProtection_bitmask[] = {
+    {PAGE_EXECUTE, "PAGE_EXECUTE"},
+    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
+    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
+    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
+    {PAGE_NOACCESS, "PAGE_NOACCESS"},
+    {PAGE_READONLY, "PAGE_READONLY"},
+    {PAGE_READWRITE, "PAGE_READWRITE"},
+    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
+    {PAGE_GUARD, "PAGE_GUARD"},
+    {PAGE_NOCACHE, "PAGE_NOCACHE"},
+    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
+    {0, NULL},
+};
+
+static const flag_repr_t _CreateWindowExW_dwStyle_value[] = {
+    {WS_OVERLAPPEDWINDOW, "WS_OVERLAPPEDWINDOW"},
+    {WS_POPUPWINDOW, "WS_POPUPWINDOW"},
+    {0, NULL},
+};
+
+static const flag_repr_t _CreateWindowExW_dwStyle_bitmask[] = {
+    {WS_OVERLAPPED, "WS_OVERLAPPED"},
+    {WS_POPUP, "WS_POPUP"},
+    {WS_CHILD, "WS_CHILD"},
+    {WS_MINIMIZE, "WS_MINIMIZE"},
+    {WS_VISIBLE, "WS_VISIBLE"},
+    {WS_DISABLED, "WS_DISABLED"},
+    {WS_CLIPSIBLINGS, "WS_CLIPSIBLINGS"},
+    {WS_CLIPCHILDREN, "WS_CLIPCHILDREN"},
+    {WS_MAXIMIZE, "WS_MAXIMIZE"},
+    {WS_CAPTION, "WS_CAPTION"},
+    {WS_BORDER, "WS_BORDER"},
+    {WS_DLGFRAME, "WS_DLGFRAME"},
+    {WS_VSCROLL, "WS_VSCROLL"},
+    {WS_HSCROLL, "WS_HSCROLL"},
+    {WS_SYSMENU, "WS_SYSMENU"},
+    {WS_THICKFRAME, "WS_THICKFRAME"},
+    {WS_GROUP, "WS_GROUP"},
+    {WS_TABSTOP, "WS_TABSTOP"},
+    {WS_MINIMIZEBOX, "WS_MINIMIZEBOX"},
+    {WS_MAXIMIZEBOX, "WS_MAXIMIZEBOX"},
     {0, NULL},
 };
 
@@ -326,35 +329,23 @@ static const flag_repr_t _SetFileAttributesW_dwFileAttributes_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtCreateFile_DesiredAccess_value[] = {
+static const flag_repr_t _RegQueryValueExW_lpType_value[] = {
+    {REG_NONE, "REG_NONE"},
+    {REG_SZ, "REG_SZ"},
+    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
+    {REG_BINARY, "REG_BINARY"},
+    {REG_DWORD, "REG_DWORD"},
+    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
+    {REG_LINK, "REG_LINK"},
+    {REG_MULTI_SZ, "REG_MULTI_SZ"},
+    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
+    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
+    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
+    {REG_QWORD, "REG_QWORD"},
     {0, NULL},
 };
 
-static const flag_repr_t _NtCreateFile_DesiredAccess_bitmask[] = {
-    {FILE_READ_DATA, "FILE_READ_DATA"},
-    {FILE_READ_ATTRIBUTES, "FILE_READ_ATTRIBUTES"},
-    {FILE_READ_EA, "FILE_READ_EA"},
-    {FILE_WRITE_DATA, "FILE_WRITE_DATA"},
-    {FILE_WRITE_ATTRIBUTES, "FILE_WRITE_ATTRIBUTES"},
-    {FILE_WRITE_EA, "FILE_WRITE_EA"},
-    {FILE_APPEND_DATA, "FILE_APPEND_DATA"},
-    {FILE_EXECUTE, "FILE_EXECUTE"},
-    {FILE_LIST_DIRECTORY, "FILE_LIST_DIRECTORY"},
-    {FILE_TRAVERSE, "FILE_TRAVERSE"},
-    {STANDARD_RIGHTS_ALL, "STANDARD_RIGHTS_ALL"},
-    {STANDARD_RIGHTS_REQUIRED, "STANDARD_RIGHTS_REQUIRED"},
-    {DELETE, "DELETE"},
-    {READ_CONTROL, "READ_CONTROL"},
-    {WRITE_DAC, "WRITE_DAC"},
-    {WRITE_OWNER, "WRITE_OWNER"},
-    {SYNCHRONIZE, "SYNCHRONIZE"},
-    {SPECIFIC_RIGHTS_ALL, "SPECIFIC_RIGHTS_ALL"},
-    {ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY"},
-    {MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED"},
-    {GENERIC_READ, "GENERIC_READ"},
-    {GENERIC_WRITE, "GENERIC_WRITE"},
-    {GENERIC_EXECUTE, "GENERIC_EXECUTE"},
-    {GENERIC_ALL, "GENERIC_ALL"},
+static const flag_repr_t _RegQueryValueExW_lpType_bitmask[] = {
     {0, NULL},
 };
 
@@ -421,20 +412,6 @@ static const flag_repr_t _NtOpenFile_DesiredAccess_bitmask[] = {
     {FILE_EXECUTE, "FILE_EXECUTE"},
     {FILE_LIST_DIRECTORY, "FILE_LIST_DIRECTORY"},
     {FILE_TRAVERSE, "FILE_TRAVERSE"},
-    {STANDARD_RIGHTS_ALL, "STANDARD_RIGHTS_ALL"},
-    {STANDARD_RIGHTS_REQUIRED, "STANDARD_RIGHTS_REQUIRED"},
-    {DELETE, "DELETE"},
-    {READ_CONTROL, "READ_CONTROL"},
-    {WRITE_DAC, "WRITE_DAC"},
-    {WRITE_OWNER, "WRITE_OWNER"},
-    {SYNCHRONIZE, "SYNCHRONIZE"},
-    {SPECIFIC_RIGHTS_ALL, "SPECIFIC_RIGHTS_ALL"},
-    {ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY"},
-    {MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED"},
-    {GENERIC_READ, "GENERIC_READ"},
-    {GENERIC_WRITE, "GENERIC_WRITE"},
-    {GENERIC_EXECUTE, "GENERIC_EXECUTE"},
-    {GENERIC_ALL, "GENERIC_ALL"},
     {0, NULL},
 };
 
@@ -590,18 +567,89 @@ static const flag_repr_t _GetSystemMetrics_nIndex_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtMapViewOfSection_AllocationType_value[] = {
+static const flag_repr_t _NtCreateThreadEx_DesiredAccess_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtMapViewOfSection_AllocationType_bitmask[] = {
-    {MEM_COMMIT, "MEM_COMMIT"},
-    {MEM_RESERVE, "MEM_RESERVE"},
-    {MEM_RESET, "MEM_RESET"},
-    {MEM_LARGE_PAGES, "MEM_LARGE_PAGES"},
-    {MEM_PHYSICAL, "MEM_PHYSICAL"},
-    {MEM_TOP_DOWN, "MEM_TOP_DOWN"},
-    {MEM_WRITE_WATCH, "MEM_WRITE_WATCH"},
+static const flag_repr_t _NtCreateThreadEx_DesiredAccess_bitmask[] = {
+    {THREAD_TERMINATE, "THREAD_TERMINATE"},
+    {THREAD_SUSPEND_RESUME, "THREAD_SUSPEND_RESUME"},
+    {THREAD_ALERT, "THREAD_ALERT"},
+    {THREAD_GET_CONTEXT, "THREAD_GET_CONTEXT"},
+    {THREAD_SET_CONTEXT, "THREAD_SET_CONTEXT"},
+    {THREAD_SET_INFORMATION, "THREAD_SET_INFORMATION"},
+    {THREAD_QUERY_INFORMATION, "THREAD_QUERY_INFORMATION"},
+    {THREAD_SET_THREAD_TOKEN, "THREAD_SET_THREAD_TOKEN"},
+    {THREAD_IMPERSONATE, "THREAD_IMPERSONATE"},
+    {THREAD_DIRECT_IMPERSONATION, "THREAD_DIRECT_IMPERSONATION"},
+    {THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS"},
+    {0, NULL},
+};
+
+static const flag_repr_t _ALG_ID_value[] = {
+    {CALG_MD2, "CALG_MD2"},
+    {CALG_MD5, "CALG_MD5"},
+    {CALG_SHA1, "CALG_SHA1"},
+    {CALG_MAC, "CALG_MAC"},
+    {CALG_HMAC, "CALG_HMAC"},
+    {CALG_SSL3_SHAMD5, "CALG_SSL3_SHAMD5"},
+    {CALG_RSA_SIGN, "CALG_RSA_SIGN"},
+    {CALG_RSA_KEYX, "CALG_RSA_KEYX"},
+    {CALG_RC2, "CALG_RC2"},
+    {CALG_RC4, "CALG_RC4"},
+    {CALG_DES, "CALG_DES"},
+    {CALG_3DES, "CALG_3DES"},
+    {CALG_3DES_112, "CALG_3DES_112"},
+    {0, NULL},
+};
+
+static const flag_repr_t _ALG_ID_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_IoStatusBlock_Information_value[] = {
+    {FILE_CREATED, "FILE_CREATED"},
+    {FILE_OPENED, "FILE_OPENED"},
+    {FILE_OVERWRITTEN, "FILE_OVERWRITTEN"},
+    {FILE_SUPERSEDED, "FILE_SUPERSEDED"},
+    {FILE_EXISTS, "FILE_EXISTS"},
+    {FILE_DOES_NOT_EXIST, "FILE_DOES_NOT_EXIST"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_IoStatusBlock_Information_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_DesiredAccess_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_DesiredAccess_bitmask[] = {
+    {FILE_READ_DATA, "FILE_READ_DATA"},
+    {FILE_READ_ATTRIBUTES, "FILE_READ_ATTRIBUTES"},
+    {FILE_READ_EA, "FILE_READ_EA"},
+    {FILE_WRITE_DATA, "FILE_WRITE_DATA"},
+    {FILE_WRITE_ATTRIBUTES, "FILE_WRITE_ATTRIBUTES"},
+    {FILE_WRITE_EA, "FILE_WRITE_EA"},
+    {FILE_APPEND_DATA, "FILE_APPEND_DATA"},
+    {FILE_EXECUTE, "FILE_EXECUTE"},
+    {FILE_LIST_DIRECTORY, "FILE_LIST_DIRECTORY"},
+    {FILE_TRAVERSE, "FILE_TRAVERSE"},
+    {STANDARD_RIGHTS_ALL, "STANDARD_RIGHTS_ALL"},
+    {STANDARD_RIGHTS_REQUIRED, "STANDARD_RIGHTS_REQUIRED"},
+    {DELETE, "DELETE"},
+    {READ_CONTROL, "READ_CONTROL"},
+    {WRITE_DAC, "WRITE_DAC"},
+    {WRITE_OWNER, "WRITE_OWNER"},
+    {SYNCHRONIZE, "SYNCHRONIZE"},
+    {SPECIFIC_RIGHTS_ALL, "SPECIFIC_RIGHTS_ALL"},
+    {ACCESS_SYSTEM_SECURITY, "ACCESS_SYSTEM_SECURITY"},
+    {MAXIMUM_ALLOWED, "MAXIMUM_ALLOWED"},
+    {GENERIC_READ, "GENERIC_READ"},
+    {GENERIC_WRITE, "GENERIC_WRITE"},
+    {GENERIC_EXECUTE, "GENERIC_EXECUTE"},
+    {GENERIC_ALL, "GENERIC_ALL"},
     {0, NULL},
 };
 
@@ -698,7 +746,21 @@ static const flag_repr_t _MemoryProtectionFlags_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _RegEnumValueA_lpType_value[] = {
+static const flag_repr_t _TaskDialog_dwCommonButtons_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _TaskDialog_dwCommonButtons_bitmask[] = {
+    {TDCBF_OK_BUTTON, "TDCBF_OK_BUTTON"},
+    {TDCBF_YES_BUTTON, "TDCBF_YES_BUTTON"},
+    {TDCBF_NO_BUTTON, "TDCBF_NO_BUTTON"},
+    {TDCBF_CANCEL_BUTTON, "TDCBF_CANCEL_BUTTON"},
+    {TDCBF_RETRY_BUTTON, "TDCBF_RETRY_BUTTON"},
+    {TDCBF_CLOSE_BUTTON, "TDCBF_CLOSE_BUTTON"},
+    {0, NULL},
+};
+
+static const flag_repr_t _RegSetValueExA_dwType_value[] = {
     {REG_NONE, "REG_NONE"},
     {REG_SZ, "REG_SZ"},
     {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
@@ -714,7 +776,36 @@ static const flag_repr_t _RegEnumValueA_lpType_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _RegEnumValueA_lpType_bitmask[] = {
+static const flag_repr_t _RegSetValueExA_dwType_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _FILE_INFO_BY_HANDLE_CLASS_value[] = {
+    {FileBasicInfo, "FileBasicInfo"},
+    {FileStandardInfo, "FileStandardInfo"},
+    {FileNameInfo, "FileNameInfo"},
+    {FileRenameInfo, "FileRenameInfo"},
+    {FileDispositionInfo, "FileDispositionInfo"},
+    {FileAllocationInfo, "FileAllocationInfo"},
+    {FileEndOfFileInfo, "FileEndOfFileInfo"},
+    {FileStreamInfo, "FileStreamInfo"},
+    {FileCompressionInfo, "FileCompressionInfo"},
+    {FileAttributeTagInfo, "FileAttributeTagInfo"},
+    {FileIdBothDirectoryInfo, "FileIdBothDirectoryInfo"},
+    {FileIdBothDirectoryRestartInfo, "FileIdBothDirectoryRestartInfo"},
+    {FileIoPriorityHintInfo, "FileIoPriorityHintInfo"},
+    {FileRemoteProtocolInfo, "FileRemoteProtocolInfo"},
+    {FileFullDirectoryInfo, "FileFullDirectoryInfo"},
+    {FileFullDirectoryRestartInfo, "FileFullDirectoryRestartInfo"},
+    {FileStorageInfo, "FileStorageInfo"},
+    {FileAlignmentInfo, "FileAlignmentInfo"},
+    {FileIdInfo, "FileIdInfo"},
+    {FileIdExtdDirectoryInfo, "FileIdExtdDirectoryInfo"},
+    {FileIdExtdDirectoryRestartInfo, "FileIdExtdDirectoryRestartInfo"},
+    {0, NULL},
+};
+
+static const flag_repr_t _FILE_INFO_BY_HANDLE_CLASS_bitmask[] = {
     {0, NULL},
 };
 
@@ -824,6 +915,69 @@ static const flag_repr_t _NtAllocateVirtualMemory_AllocationType_bitmask[] = {
     {MEM_PHYSICAL, "MEM_PHYSICAL"},
     {MEM_TOP_DOWN, "MEM_TOP_DOWN"},
     {MEM_WRITE_WATCH, "MEM_WRITE_WATCH"},
+    {0, NULL},
+};
+
+static const flag_repr_t _FILE_INFORMATION_CLASS_value[] = {
+    {FileDirectoryInformation, "FileDirectoryInformation"},
+    {FileFullDirectoryInformation, "FileFullDirectoryInformation"},
+    {FileBothDirectoryInformation, "FileBothDirectoryInformation"},
+    {FileBasicInformation, "FileBasicInformation"},
+    {FileStandardInformation, "FileStandardInformation"},
+    {FileInternalInformation, "FileInternalInformation"},
+    {FileEaInformation, "FileEaInformation"},
+    {FileAccessInformation, "FileAccessInformation"},
+    {FileNameInformation, "FileNameInformation"},
+    {FileRenameInformation, "FileRenameInformation"},
+    {FileLinkInformation, "FileLinkInformation"},
+    {FileNamesInformation, "FileNamesInformation"},
+    {FileDispositionInformation, "FileDispositionInformation"},
+    {FilePositionInformation, "FilePositionInformation"},
+    {FileFullEaInformation, "FileFullEaInformation"},
+    {FileModeInformation, "FileModeInformation"},
+    {FileAlignmentInformation, "FileAlignmentInformation"},
+    {FileAllInformation, "FileAllInformation"},
+    {FileAllocationInformation, "FileAllocationInformation"},
+    {FileEndOfFileInformation, "FileEndOfFileInformation"},
+    {FileAlternateNameInformation, "FileAlternateNameInformation"},
+    {FileStreamInformation, "FileStreamInformation"},
+    {FilePipeInformation, "FilePipeInformation"},
+    {FilePipeLocalInformation, "FilePipeLocalInformation"},
+    {FilePipeRemoteInformation, "FilePipeRemoteInformation"},
+    {FileMailslotQueryInformation, "FileMailslotQueryInformation"},
+    {FileMailslotSetInformation, "FileMailslotSetInformation"},
+    {FileCompressionInformation, "FileCompressionInformation"},
+    {FileObjectIdInformation, "FileObjectIdInformation"},
+    {FileCompletionInformation, "FileCompletionInformation"},
+    {FileMoveClusterInformation, "FileMoveClusterInformation"},
+    {FileQuotaInformation, "FileQuotaInformation"},
+    {FileReparsePointInformation, "FileReparsePointInformation"},
+    {FileNetworkOpenInformation, "FileNetworkOpenInformation"},
+    {FileAttributeTagInformation, "FileAttributeTagInformation"},
+    {FileTrackingInformation, "FileTrackingInformation"},
+    {FileIdBothDirectoryInformation, "FileIdBothDirectoryInformation"},
+    {FileIdFullDirectoryInformation, "FileIdFullDirectoryInformation"},
+    {FileValidDataLengthInformation, "FileValidDataLengthInformation"},
+    {FileShortNameInformation, "FileShortNameInformation"},
+    {FileIoCompletionNotificationInformation, "FileIoCompletionNotificationInformation"},
+    {FileIoStatusBlockRangeInformation, "FileIoStatusBlockRangeInformation"},
+    {FileIoPriorityHintInformation, "FileIoPriorityHintInformation"},
+    {FileSfioReserveInformation, "FileSfioReserveInformation"},
+    {FileSfioVolumeInformation, "FileSfioVolumeInformation"},
+    {FileHardLinkInformation, "FileHardLinkInformation"},
+    {FileProcessIdsUsingFileInformation, "FileProcessIdsUsingFileInformation"},
+    {FileNormalizedNameInformation, "FileNormalizedNameInformation"},
+    {FileNetworkPhysicalNameInformation, "FileNetworkPhysicalNameInformation"},
+    {FileIdGlobalTxDirectoryInformation, "FileIdGlobalTxDirectoryInformation"},
+    {FileIsRemoteDeviceInformation, "FileIsRemoteDeviceInformation"},
+    {FileAttributeCacheInformation, "FileAttributeCacheInformation"},
+    {FileNumaNodeInformation, "FileNumaNodeInformation"},
+    {FileStandardLinkInformation, "FileStandardLinkInformation"},
+    {FileRemoteProtocolInformation, "FileRemoteProtocolInformation"},
+    {0, NULL},
+};
+
+static const flag_repr_t _FILE_INFORMATION_CLASS_bitmask[] = {
     {0, NULL},
 };
 
@@ -940,17 +1094,168 @@ static const flag_repr_t _InternetSetOptionA_dwOption_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtCreateFile_CreateDisposition_value[] = {
-    {FILE_SUPERSEDE, "FILE_SUPERSEDE"},
-    {FILE_CREATE, "FILE_CREATE"},
-    {FILE_OPEN, "FILE_OPEN"},
-    {FILE_OPEN_IF, "FILE_OPEN_IF"},
-    {FILE_OVERWRITE, "FILE_OVERWRITE"},
-    {FILE_OVERWRITE_IF, "FILE_OVERWRITE_IF"},
+static const flag_repr_t _NtQuerySystemInformation_SystemInformationClass_value[] = {
+    {SystemBasicInformation, "SystemBasicInformation"},
+    {SystemProcessorInformation, "SystemProcessorInformation"},
+    {SystemPerformanceInformation, "SystemPerformanceInformation"},
+    {SystemTimeOfDayInformation, "SystemTimeOfDayInformation"},
+    {SystemPathInformation, "SystemPathInformation"},
+    {SystemProcessInformation, "SystemProcessInformation"},
+    {SystemCallCountInformation, "SystemCallCountInformation"},
+    {SystemDeviceInformation, "SystemDeviceInformation"},
+    {SystemProcessorPerformanceInformation, "SystemProcessorPerformanceInformation"},
+    {SystemFlagsInformation, "SystemFlagsInformation"},
+    {SystemCallTimeInformation, "SystemCallTimeInformation"},
+    {SystemModuleInformation, "SystemModuleInformation"},
+    {SystemLocksInformation, "SystemLocksInformation"},
+    {SystemStackTraceInformation, "SystemStackTraceInformation"},
+    {SystemPagedPoolInformation, "SystemPagedPoolInformation"},
+    {SystemNonPagedPoolInformation, "SystemNonPagedPoolInformation"},
+    {SystemHandleInformation, "SystemHandleInformation"},
+    {SystemObjectInformation, "SystemObjectInformation"},
+    {SystemPageFileInformation, "SystemPageFileInformation"},
+    {SystemVdmInstemulInformation, "SystemVdmInstemulInformation"},
+    {SystemVdmBopInformation, "SystemVdmBopInformation"},
+    {SystemFileCacheInformation, "SystemFileCacheInformation"},
+    {SystemPoolTagInformation, "SystemPoolTagInformation"},
+    {SystemInterruptInformation, "SystemInterruptInformation"},
+    {SystemDpcBehaviorInformation, "SystemDpcBehaviorInformation"},
+    {SystemFullMemoryInformation, "SystemFullMemoryInformation"},
+    {SystemLoadGdiDriverInformation, "SystemLoadGdiDriverInformation"},
+    {SystemUnloadGdiDriverInformation, "SystemUnloadGdiDriverInformation"},
+    {SystemTimeAdjustmentInformation, "SystemTimeAdjustmentInformation"},
+    {SystemSummaryMemoryInformation, "SystemSummaryMemoryInformation"},
+    {SystemMirrorMemoryInformation, "SystemMirrorMemoryInformation"},
+    {SystemPerformanceTraceInformation, "SystemPerformanceTraceInformation"},
+    {SystemObsolete0, "SystemObsolete0"},
+    {SystemExceptionInformation, "SystemExceptionInformation"},
+    {SystemCrashDumpStateInformation, "SystemCrashDumpStateInformation"},
+    {SystemKernelDebuggerInformation, "SystemKernelDebuggerInformation"},
+    {SystemContextSwitchInformation, "SystemContextSwitchInformation"},
+    {SystemRegistryQuotaInformation, "SystemRegistryQuotaInformation"},
+    {SystemExtendServiceTableInformation, "SystemExtendServiceTableInformation"},
+    {SystemPrioritySeperation, "SystemPrioritySeperation"},
+    {SystemVerifierAddDriverInformation, "SystemVerifierAddDriverInformation"},
+    {SystemVerifierRemoveDriverInformation, "SystemVerifierRemoveDriverInformation"},
+    {SystemProcessorIdleInformation, "SystemProcessorIdleInformation"},
+    {SystemLegacyDriverInformation, "SystemLegacyDriverInformation"},
+    {SystemCurrentTimeZoneInformation, "SystemCurrentTimeZoneInformation"},
+    {SystemLookasideInformation, "SystemLookasideInformation"},
+    {SystemTimeSlipNotification, "SystemTimeSlipNotification"},
+    {SystemSessionCreate, "SystemSessionCreate"},
+    {SystemSessionDetach, "SystemSessionDetach"},
+    {SystemSessionInformation, "SystemSessionInformation"},
+    {SystemRangeStartInformation, "SystemRangeStartInformation"},
+    {SystemVerifierInformation, "SystemVerifierInformation"},
+    {SystemVerifierThunkExtend, "SystemVerifierThunkExtend"},
+    {SystemSessionProcessInformation, "SystemSessionProcessInformation"},
+    {SystemLoadGdiDriverInSystemSpace, "SystemLoadGdiDriverInSystemSpace"},
+    {SystemNumaProcessorMap, "SystemNumaProcessorMap"},
+    {SystemPrefetcherInformation, "SystemPrefetcherInformation"},
+    {SystemExtendedProcessInformation, "SystemExtendedProcessInformation"},
+    {SystemRecommendedSharedDataAlignment, "SystemRecommendedSharedDataAlignment"},
+    {SystemComPlusPackage, "SystemComPlusPackage"},
+    {SystemNumaAvailableMemory, "SystemNumaAvailableMemory"},
+    {SystemProcessorPowerInformation, "SystemProcessorPowerInformation"},
+    {SystemEmulationBasicInformation, "SystemEmulationBasicInformation"},
+    {SystemEmulationProcessorInformation, "SystemEmulationProcessorInformation"},
+    {SystemExtendedHandleInformation, "SystemExtendedHandleInformation"},
+    {SystemLostDelayedWriteInformation, "SystemLostDelayedWriteInformation"},
+    {SystemBigPoolInformation, "SystemBigPoolInformation"},
+    {SystemSessionPoolTagInformation, "SystemSessionPoolTagInformation"},
+    {SystemSessionMappedViewInformation, "SystemSessionMappedViewInformation"},
+    {SystemHotpatchInformation, "SystemHotpatchInformation"},
+    {SystemObjectSecurityMode, "SystemObjectSecurityMode"},
+    {SystemWatchdogTimerHandler, "SystemWatchdogTimerHandler"},
+    {SystemWatchdogTimerInformation, "SystemWatchdogTimerInformation"},
+    {SystemLogicalProcessorInformation, "SystemLogicalProcessorInformation"},
+    {SystemWow64SharedInformationObsolete, "SystemWow64SharedInformationObsolete"},
+    {SystemRegisterFirmwareTableInformationHandler, "SystemRegisterFirmwareTableInformationHandler"},
+    {SystemFirmwareTableInformation, "SystemFirmwareTableInformation"},
+    {SystemModuleInformationEx, "SystemModuleInformationEx"},
+    {SystemVerifierTriageInformation, "SystemVerifierTriageInformation"},
+    {SystemSuperfetchInformation, "SystemSuperfetchInformation"},
+    {SystemMemoryListInformation, "SystemMemoryListInformation"},
+    {SystemFileCacheInformationEx, "SystemFileCacheInformationEx"},
+    {SystemThreadPriorityClientIdInformation, "SystemThreadPriorityClientIdInformation"},
+    {SystemProcessorIdleCycleTimeInformation, "SystemProcessorIdleCycleTimeInformation"},
+    {SystemVerifierCancellationInformation, "SystemVerifierCancellationInformation"},
+    {SystemProcessorPowerInformationEx, "SystemProcessorPowerInformationEx"},
+    {SystemRefTraceInformation, "SystemRefTraceInformation"},
+    {SystemSpecialPoolInformation, "SystemSpecialPoolInformation"},
+    {SystemProcessIdInformation, "SystemProcessIdInformation"},
+    {SystemErrorPortInformation, "SystemErrorPortInformation"},
+    {SystemBootEnvironmentInformation, "SystemBootEnvironmentInformation"},
+    {SystemHypervisorInformation, "SystemHypervisorInformation"},
+    {SystemVerifierInformationEx, "SystemVerifierInformationEx"},
+    {SystemTimeZoneInformation, "SystemTimeZoneInformation"},
+    {SystemImageFileExecutionOptionsInformation, "SystemImageFileExecutionOptionsInformation"},
+    {SystemCoverageInformation, "SystemCoverageInformation"},
+    {SystemPrefetchPatchInformation, "SystemPrefetchPatchInformation"},
+    {SystemVerifierFaultsInformation, "SystemVerifierFaultsInformation"},
+    {SystemSystemPartitionInformation, "SystemSystemPartitionInformation"},
+    {SystemSystemDiskInformation, "SystemSystemDiskInformation"},
+    {SystemProcessorPerformanceDistribution, "SystemProcessorPerformanceDistribution"},
+    {SystemNumaProximityNodeInformation, "SystemNumaProximityNodeInformation"},
+    {SystemDynamicTimeZoneInformation, "SystemDynamicTimeZoneInformation"},
+    {SystemCodeIntegrityInformation, "SystemCodeIntegrityInformation"},
+    {SystemProcessorMicrocodeUpdateInformation, "SystemProcessorMicrocodeUpdateInformation"},
+    {SystemProcessorBrandString, "SystemProcessorBrandString"},
+    {SystemVirtualAddressInformation, "SystemVirtualAddressInformation"},
+    {SystemLogicalProcessorAndGroupInformation, "SystemLogicalProcessorAndGroupInformation"},
+    {SystemProcessorCycleTimeInformation, "SystemProcessorCycleTimeInformation"},
+    {SystemStoreInformation, "SystemStoreInformation"},
+    {SystemRegistryAppendString, "SystemRegistryAppendString"},
+    {SystemAitSamplingValue, "SystemAitSamplingValue"},
+    {SystemVhdBootInformation, "SystemVhdBootInformation"},
+    {SystemCpuQuotaInformation, "SystemCpuQuotaInformation"},
+    {SystemNativeBasicInformation, "SystemNativeBasicInformation"},
+    {SystemErrorPortTimeouts, "SystemErrorPortTimeouts"},
+    {SystemLowPriorityIoInformation, "SystemLowPriorityIoInformation"},
+    {SystemBootEntropyInformation, "SystemBootEntropyInformation"},
+    {SystemVerifierCountersInformation, "SystemVerifierCountersInformation"},
+    {SystemPagedPoolInformationEx, "SystemPagedPoolInformationEx"},
+    {SystemSystemPtesInformationEx, "SystemSystemPtesInformationEx"},
+    {SystemNodeDistanceInformation, "SystemNodeDistanceInformation"},
+    {SystemAcpiAuditInformation, "SystemAcpiAuditInformation"},
+    {SystemBasicPerformanceInformation, "SystemBasicPerformanceInformation"},
+    {SystemQueryPerformanceCounterInformation, "SystemQueryPerformanceCounterInformation"},
+    {SystemSessionBigPoolInformation, "SystemSessionBigPoolInformation"},
+    {SystemBootGraphicsInformation, "SystemBootGraphicsInformation"},
+    {SystemScrubPhysicalMemoryInformation, "SystemScrubPhysicalMemoryInformation"},
+    {SystemBadPageInformation, "SystemBadPageInformation"},
+    {SystemProcessorProfileControlArea, "SystemProcessorProfileControlArea"},
+    {SystemCombinePhysicalMemoryInformation, "SystemCombinePhysicalMemoryInformation"},
+    {SystemEntropyInterruptTimingInformation, "SystemEntropyInterruptTimingInformation"},
+    {SystemConsoleInformation, "SystemConsoleInformation"},
+    {SystemPlatformBinaryInformation, "SystemPlatformBinaryInformation"},
+    {SystemPolicyInformation, "SystemPolicyInformation"},
+    {SystemHypervisorProcessorCountInformation, "SystemHypervisorProcessorCountInformation"},
+    {SystemDeviceDataInformation, "SystemDeviceDataInformation"},
+    {SystemDeviceDataEnumerationInformation, "SystemDeviceDataEnumerationInformation"},
+    {SystemMemoryTopologyInformation, "SystemMemoryTopologyInformation"},
+    {SystemMemoryChannelInformation, "SystemMemoryChannelInformation"},
+    {SystemBootLogoInformation, "SystemBootLogoInformation"},
+    {SystemProcessorPerformanceInformationEx, "SystemProcessorPerformanceInformationEx"},
+    {SystemSpare0, "SystemSpare0"},
+    {SystemSecureBootPolicyInformation, "SystemSecureBootPolicyInformation"},
+    {SystemPageFileInformationEx, "SystemPageFileInformationEx"},
+    {SystemSecureBootInformation, "SystemSecureBootInformation"},
+    {SystemEntropyInterruptTimingRawInformation, "SystemEntropyInterruptTimingRawInformation"},
+    {SystemPortableWorkspaceEfiLauncherInformation, "SystemPortableWorkspaceEfiLauncherInformation"},
+    {SystemFullProcessInformation, "SystemFullProcessInformation"},
+    {SystemKernelDebuggerInformationEx, "SystemKernelDebuggerInformationEx"},
+    {SystemBootMetadataInformation, "SystemBootMetadataInformation"},
+    {SystemSoftRebootInformation, "SystemSoftRebootInformation"},
+    {SystemElamCertificateInformation, "SystemElamCertificateInformation"},
+    {SystemOfflineDumpConfigInformation, "SystemOfflineDumpConfigInformation"},
+    {SystemProcessorFeaturesInformation, "SystemProcessorFeaturesInformation"},
+    {SystemRegistryReconciliationInformation, "SystemRegistryReconciliationInformation"},
+    {SystemEdidInformation, "SystemEdidInformation"},
     {0, NULL},
 };
 
-static const flag_repr_t _NtCreateFile_CreateDisposition_bitmask[] = {
+static const flag_repr_t _NtQuerySystemInformation_SystemInformationClass_bitmask[] = {
     {0, NULL},
 };
 
@@ -968,29 +1273,22 @@ static const flag_repr_t _PRIORITY_CLASS_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtOpenFile_ShareAccess_value[] = {
+static const flag_repr_t _VirtualProtectEx_flNewProtect_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _NtOpenFile_ShareAccess_bitmask[] = {
-    {FILE_SHARE_READ, "FILE_SHARE_READ"},
-    {FILE_SHARE_WRITE, "FILE_SHARE_WRITE"},
-    {FILE_SHARE_DELETE, "FILE_SHARE_DELETE"},
-    {0, NULL},
-};
-
-static const flag_repr_t _AllocationType_value[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _AllocationType_bitmask[] = {
-    {MEM_COMMIT, "MEM_COMMIT"},
-    {MEM_RESERVE, "MEM_RESERVE"},
-    {MEM_RESET, "MEM_RESET"},
-    {MEM_LARGE_PAGES, "MEM_LARGE_PAGES"},
-    {MEM_PHYSICAL, "MEM_PHYSICAL"},
-    {MEM_TOP_DOWN, "MEM_TOP_DOWN"},
-    {MEM_WRITE_WATCH, "MEM_WRITE_WATCH"},
+static const flag_repr_t _VirtualProtectEx_flNewProtect_bitmask[] = {
+    {PAGE_EXECUTE, "PAGE_EXECUTE"},
+    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
+    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
+    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
+    {PAGE_NOACCESS, "PAGE_NOACCESS"},
+    {PAGE_READONLY, "PAGE_READONLY"},
+    {PAGE_READWRITE, "PAGE_READWRITE"},
+    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
+    {PAGE_GUARD, "PAGE_GUARD"},
+    {PAGE_NOCACHE, "PAGE_NOCACHE"},
+    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
     {0, NULL},
 };
 
@@ -1021,6 +1319,26 @@ static const flag_repr_t _WindowStyles_bitmask[] = {
     {WS_TABSTOP, "WS_TABSTOP"},
     {WS_MINIMIZEBOX, "WS_MINIMIZEBOX"},
     {WS_MAXIMIZEBOX, "WS_MAXIMIZEBOX"},
+    {0, NULL},
+};
+
+static const flag_repr_t _REGISTRY_VALUE_TYPE_value[] = {
+    {REG_NONE, "REG_NONE"},
+    {REG_SZ, "REG_SZ"},
+    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
+    {REG_BINARY, "REG_BINARY"},
+    {REG_DWORD, "REG_DWORD"},
+    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
+    {REG_LINK, "REG_LINK"},
+    {REG_MULTI_SZ, "REG_MULTI_SZ"},
+    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
+    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
+    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
+    {REG_QWORD, "REG_QWORD"},
+    {0, NULL},
+};
+
+static const flag_repr_t _REGISTRY_VALUE_TYPE_bitmask[] = {
     {0, NULL},
 };
 
@@ -1090,6 +1408,26 @@ static const flag_repr_t _CreateWindowExA_dwExStyle_bitmask[] = {
     {0, NULL},
 };
 
+static const flag_repr_t _NtQueryValueKey_reg_type_value[] = {
+    {REG_NONE, "REG_NONE"},
+    {REG_SZ, "REG_SZ"},
+    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
+    {REG_BINARY, "REG_BINARY"},
+    {REG_DWORD, "REG_DWORD"},
+    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
+    {REG_LINK, "REG_LINK"},
+    {REG_MULTI_SZ, "REG_MULTI_SZ"},
+    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
+    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
+    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
+    {REG_QWORD, "REG_QWORD"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtQueryValueKey_reg_type_bitmask[] = {
+    {0, NULL},
+};
+
 static const flag_repr_t _ExtendedWindowStyles_value[] = {
     {WS_EX_OVERLAPPEDWINDOW, "WS_EX_OVERLAPPEDWINDOW"},
     {WS_EX_PALETTEWINDOW, "WS_EX_PALETTEWINDOW"},
@@ -1135,6 +1473,25 @@ static const flag_repr_t _NtCreateFile_ShareAccess_bitmask[] = {
     {0, NULL},
 };
 
+static const flag_repr_t _NtCreateThread_DesiredAccess_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateThread_DesiredAccess_bitmask[] = {
+    {THREAD_TERMINATE, "THREAD_TERMINATE"},
+    {THREAD_SUSPEND_RESUME, "THREAD_SUSPEND_RESUME"},
+    {THREAD_ALERT, "THREAD_ALERT"},
+    {THREAD_GET_CONTEXT, "THREAD_GET_CONTEXT"},
+    {THREAD_SET_CONTEXT, "THREAD_SET_CONTEXT"},
+    {THREAD_SET_INFORMATION, "THREAD_SET_INFORMATION"},
+    {THREAD_QUERY_INFORMATION, "THREAD_QUERY_INFORMATION"},
+    {THREAD_SET_THREAD_TOKEN, "THREAD_SET_THREAD_TOKEN"},
+    {THREAD_IMPERSONATE, "THREAD_IMPERSONATE"},
+    {THREAD_DIRECT_IMPERSONATION, "THREAD_DIRECT_IMPERSONATION"},
+    {THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS"},
+    {0, NULL},
+};
+
 static const flag_repr_t _ShareAccessFlags_value[] = {
     {0, NULL},
 };
@@ -1163,6 +1520,25 @@ static const flag_repr_t _RegEnumValueW_lpType_value[] = {
 };
 
 static const flag_repr_t _RegEnumValueW_lpType_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtMapViewOfSection_Win32Protect_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtMapViewOfSection_Win32Protect_bitmask[] = {
+    {PAGE_EXECUTE, "PAGE_EXECUTE"},
+    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
+    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
+    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
+    {PAGE_NOACCESS, "PAGE_NOACCESS"},
+    {PAGE_READONLY, "PAGE_READONLY"},
+    {PAGE_READWRITE, "PAGE_READWRITE"},
+    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
+    {PAGE_GUARD, "PAGE_GUARD"},
+    {PAGE_NOCACHE, "PAGE_NOCACHE"},
+    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
     {0, NULL},
 };
 
@@ -1251,6 +1627,20 @@ static const flag_repr_t _SHGetFolderPathW_nFolder_value[] = {
 };
 
 static const flag_repr_t _SHGetFolderPathW_nFolder_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateSection_DesiredAccess_value[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateSection_DesiredAccess_bitmask[] = {
+    {SECTION_QUERY, "SECTION_QUERY"},
+    {SECTION_MAP_WRITE, "SECTION_MAP_WRITE"},
+    {SECTION_MAP_READ, "SECTION_MAP_READ"},
+    {SECTION_MAP_EXECUTE, "SECTION_MAP_EXECUTE"},
+    {SECTION_EXTEND_SIZE, "SECTION_EXTEND_SIZE"},
+    {SECTION_ALL_ACCESS, "SECTION_ALL_ACCESS"},
     {0, NULL},
 };
 
@@ -1351,6 +1741,26 @@ static const flag_repr_t _DeviceIoControl_dwIoControlCode_bitmask[] = {
     {0, NULL},
 };
 
+static const flag_repr_t _RegEnumValueA_lpType_value[] = {
+    {REG_NONE, "REG_NONE"},
+    {REG_SZ, "REG_SZ"},
+    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
+    {REG_BINARY, "REG_BINARY"},
+    {REG_DWORD, "REG_DWORD"},
+    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
+    {REG_LINK, "REG_LINK"},
+    {REG_MULTI_SZ, "REG_MULTI_SZ"},
+    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
+    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
+    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
+    {REG_QWORD, "REG_QWORD"},
+    {0, NULL},
+};
+
+static const flag_repr_t _RegEnumValueA_lpType_bitmask[] = {
+    {0, NULL},
+};
+
 static const flag_repr_t _ACCESS_MASK_value[] = {
     {0, NULL},
 };
@@ -1370,6 +1780,31 @@ static const flag_repr_t _ACCESS_MASK_bitmask[] = {
     {GENERIC_WRITE, "GENERIC_WRITE"},
     {GENERIC_EXECUTE, "GENERIC_EXECUTE"},
     {GENERIC_ALL, "GENERIC_ALL"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtShutdownSystem_Action_value[] = {
+    {ShutdownNoReboot, "ShutdownNoReboot"},
+    {ShutdownReboot, "ShutdownReboot"},
+    {ShutdownPowerOff, "ShutdownPowerOff"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtShutdownSystem_Action_bitmask[] = {
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_CreateDisposition_value[] = {
+    {FILE_SUPERSEDE, "FILE_SUPERSEDE"},
+    {FILE_CREATE, "FILE_CREATE"},
+    {FILE_OPEN, "FILE_OPEN"},
+    {FILE_OPEN_IF, "FILE_OPEN_IF"},
+    {FILE_OVERWRITE, "FILE_OVERWRITE"},
+    {FILE_OVERWRITE_IF, "FILE_OVERWRITE_IF"},
+    {0, NULL},
+};
+
+static const flag_repr_t _NtCreateFile_CreateDisposition_bitmask[] = {
     {0, NULL},
 };
 
@@ -1393,23 +1828,22 @@ static const flag_repr_t _NtSetValueKey_Type_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _REGISTRY_VALUE_TYPE_value[] = {
-    {REG_NONE, "REG_NONE"},
-    {REG_SZ, "REG_SZ"},
-    {REG_EXPAND_SZ, "REG_EXPAND_SZ"},
-    {REG_BINARY, "REG_BINARY"},
-    {REG_DWORD, "REG_DWORD"},
-    {REG_DWORD_BIG_ENDIAN, "REG_DWORD_BIG_ENDIAN"},
-    {REG_LINK, "REG_LINK"},
-    {REG_MULTI_SZ, "REG_MULTI_SZ"},
-    {REG_RESOURCE_LIST, "REG_RESOURCE_LIST"},
-    {REG_FULL_RESOURCE_DESCRIPTOR, "REG_FULL_RESOURCE_DESCRIPTOR"},
-    {REG_RESOURCE_REQUIREMENTS_LIST, "REG_RESOURCE_REQUIREMENTS_LIST"},
-    {REG_QWORD, "REG_QWORD"},
+static const flag_repr_t _NtOpenThread_DesiredAccess_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _REGISTRY_VALUE_TYPE_bitmask[] = {
+static const flag_repr_t _NtOpenThread_DesiredAccess_bitmask[] = {
+    {THREAD_TERMINATE, "THREAD_TERMINATE"},
+    {THREAD_SUSPEND_RESUME, "THREAD_SUSPEND_RESUME"},
+    {THREAD_ALERT, "THREAD_ALERT"},
+    {THREAD_GET_CONTEXT, "THREAD_GET_CONTEXT"},
+    {THREAD_SET_CONTEXT, "THREAD_SET_CONTEXT"},
+    {THREAD_SET_INFORMATION, "THREAD_SET_INFORMATION"},
+    {THREAD_QUERY_INFORMATION, "THREAD_QUERY_INFORMATION"},
+    {THREAD_SET_THREAD_TOKEN, "THREAD_SET_THREAD_TOKEN"},
+    {THREAD_IMPERSONATE, "THREAD_IMPERSONATE"},
+    {THREAD_DIRECT_IMPERSONATION, "THREAD_DIRECT_IMPERSONATION"},
+    {THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS"},
     {0, NULL},
 };
 
@@ -1443,24 +1877,14 @@ static const flag_repr_t _CreateWindowExA_dwStyle_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _ALG_ID_value[] = {
-    {CALG_MD2, "CALG_MD2"},
-    {CALG_MD5, "CALG_MD5"},
-    {CALG_SHA1, "CALG_SHA1"},
-    {CALG_MAC, "CALG_MAC"},
-    {CALG_HMAC, "CALG_HMAC"},
-    {CALG_SSL3_SHAMD5, "CALG_SSL3_SHAMD5"},
-    {CALG_RSA_SIGN, "CALG_RSA_SIGN"},
-    {CALG_RSA_KEYX, "CALG_RSA_KEYX"},
-    {CALG_RC2, "CALG_RC2"},
-    {CALG_RC4, "CALG_RC4"},
-    {CALG_DES, "CALG_DES"},
-    {CALG_3DES, "CALG_3DES"},
-    {CALG_3DES_112, "CALG_3DES_112"},
+static const flag_repr_t _NtOpenFile_ShareAccess_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _ALG_ID_bitmask[] = {
+static const flag_repr_t _NtOpenFile_ShareAccess_bitmask[] = {
+    {FILE_SHARE_READ, "FILE_SHARE_READ"},
+    {FILE_SHARE_WRITE, "FILE_SHARE_WRITE"},
+    {FILE_SHARE_DELETE, "FILE_SHARE_DELETE"},
     {0, NULL},
 };
 
@@ -1552,22 +1976,22 @@ static const flag_repr_t _IOCTL_CODES_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _VirtualProtectEx_flNewProtect_value[] = {
+static const flag_repr_t _ThreadDesiredAccess_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _VirtualProtectEx_flNewProtect_bitmask[] = {
-    {PAGE_EXECUTE, "PAGE_EXECUTE"},
-    {PAGE_EXECUTE_READ, "PAGE_EXECUTE_READ"},
-    {PAGE_EXECUTE_READWRITE, "PAGE_EXECUTE_READWRITE"},
-    {PAGE_EXECUTE_WRITECOPY, "PAGE_EXECUTE_WRITECOPY"},
-    {PAGE_NOACCESS, "PAGE_NOACCESS"},
-    {PAGE_READONLY, "PAGE_READONLY"},
-    {PAGE_READWRITE, "PAGE_READWRITE"},
-    {PAGE_WRITECOPY, "PAGE_WRITECOPY"},
-    {PAGE_GUARD, "PAGE_GUARD"},
-    {PAGE_NOCACHE, "PAGE_NOCACHE"},
-    {PAGE_WRITECOMBINE, "PAGE_WRITECOMBINE"},
+static const flag_repr_t _ThreadDesiredAccess_bitmask[] = {
+    {THREAD_TERMINATE, "THREAD_TERMINATE"},
+    {THREAD_SUSPEND_RESUME, "THREAD_SUSPEND_RESUME"},
+    {THREAD_ALERT, "THREAD_ALERT"},
+    {THREAD_GET_CONTEXT, "THREAD_GET_CONTEXT"},
+    {THREAD_SET_CONTEXT, "THREAD_SET_CONTEXT"},
+    {THREAD_SET_INFORMATION, "THREAD_SET_INFORMATION"},
+    {THREAD_QUERY_INFORMATION, "THREAD_QUERY_INFORMATION"},
+    {THREAD_SET_THREAD_TOKEN, "THREAD_SET_THREAD_TOKEN"},
+    {THREAD_IMPERSONATE, "THREAD_IMPERSONATE"},
+    {THREAD_DIRECT_IMPERSONATION, "THREAD_DIRECT_IMPERSONATION"},
+    {THREAD_ALL_ACCESS, "THREAD_ALL_ACCESS"},
     {0, NULL},
 };
 
@@ -1641,62 +2065,18 @@ static const flag_repr_t _FileOptions_bitmask[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _FILE_INFO_BY_HANDLE_CLASS_value[] = {
-    {FileBasicInfo, "FileBasicInfo"},
-    {FileStandardInfo, "FileStandardInfo"},
-    {FileNameInfo, "FileNameInfo"},
-    {FileRenameInfo, "FileRenameInfo"},
-    {FileDispositionInfo, "FileDispositionInfo"},
-    {FileAllocationInfo, "FileAllocationInfo"},
-    {FileEndOfFileInfo, "FileEndOfFileInfo"},
-    {FileStreamInfo, "FileStreamInfo"},
-    {FileCompressionInfo, "FileCompressionInfo"},
-    {FileAttributeTagInfo, "FileAttributeTagInfo"},
-    {FileIdBothDirectoryInfo, "FileIdBothDirectoryInfo"},
-    {FileIdBothDirectoryRestartInfo, "FileIdBothDirectoryRestartInfo"},
-    {FileIoPriorityHintInfo, "FileIoPriorityHintInfo"},
-    {FileRemoteProtocolInfo, "FileRemoteProtocolInfo"},
-    {FileFullDirectoryInfo, "FileFullDirectoryInfo"},
-    {FileFullDirectoryRestartInfo, "FileFullDirectoryRestartInfo"},
-    {FileStorageInfo, "FileStorageInfo"},
-    {FileAlignmentInfo, "FileAlignmentInfo"},
-    {FileIdInfo, "FileIdInfo"},
-    {FileIdExtdDirectoryInfo, "FileIdExtdDirectoryInfo"},
-    {FileIdExtdDirectoryRestartInfo, "FileIdExtdDirectoryRestartInfo"},
+static const flag_repr_t _AllocationType_value[] = {
     {0, NULL},
 };
 
-static const flag_repr_t _FILE_INFO_BY_HANDLE_CLASS_bitmask[] = {
-    {0, NULL},
-};
-
-static const flag_repr_t _CreateWindowExW_dwStyle_value[] = {
-    {WS_OVERLAPPEDWINDOW, "WS_OVERLAPPEDWINDOW"},
-    {WS_POPUPWINDOW, "WS_POPUPWINDOW"},
-    {0, NULL},
-};
-
-static const flag_repr_t _CreateWindowExW_dwStyle_bitmask[] = {
-    {WS_OVERLAPPED, "WS_OVERLAPPED"},
-    {WS_POPUP, "WS_POPUP"},
-    {WS_CHILD, "WS_CHILD"},
-    {WS_MINIMIZE, "WS_MINIMIZE"},
-    {WS_VISIBLE, "WS_VISIBLE"},
-    {WS_DISABLED, "WS_DISABLED"},
-    {WS_CLIPSIBLINGS, "WS_CLIPSIBLINGS"},
-    {WS_CLIPCHILDREN, "WS_CLIPCHILDREN"},
-    {WS_MAXIMIZE, "WS_MAXIMIZE"},
-    {WS_CAPTION, "WS_CAPTION"},
-    {WS_BORDER, "WS_BORDER"},
-    {WS_DLGFRAME, "WS_DLGFRAME"},
-    {WS_VSCROLL, "WS_VSCROLL"},
-    {WS_HSCROLL, "WS_HSCROLL"},
-    {WS_SYSMENU, "WS_SYSMENU"},
-    {WS_THICKFRAME, "WS_THICKFRAME"},
-    {WS_GROUP, "WS_GROUP"},
-    {WS_TABSTOP, "WS_TABSTOP"},
-    {WS_MINIMIZEBOX, "WS_MINIMIZEBOX"},
-    {WS_MAXIMIZEBOX, "WS_MAXIMIZEBOX"},
+static const flag_repr_t _AllocationType_bitmask[] = {
+    {MEM_COMMIT, "MEM_COMMIT"},
+    {MEM_RESERVE, "MEM_RESERVE"},
+    {MEM_RESET, "MEM_RESET"},
+    {MEM_LARGE_PAGES, "MEM_LARGE_PAGES"},
+    {MEM_PHYSICAL, "MEM_PHYSICAL"},
+    {MEM_TOP_DOWN, "MEM_TOP_DOWN"},
+    {MEM_WRITE_WATCH, "MEM_WRITE_WATCH"},
     {0, NULL},
 };
 
@@ -1726,59 +2106,74 @@ static const flag_repr_t _SetWindowsHookExA_idHook_bitmask[] = {
 
 const flag_repr_t *g_flags[FLAGCNT][2] = {
     {NULL, NULL},
-    {_NtQueryValueKey_reg_type_value, _NtQueryValueKey_reg_type_bitmask},
-    {_RegQueryValueExW_lpType_value, _RegQueryValueExW_lpType_bitmask},
+    {_InternetQueryOptions_value, _InternetQueryOptions_bitmask},
+    {_ioctlsocket_cmd_value, _ioctlsocket_cmd_bitmask},
+    {_NtMapViewOfSection_AllocationType_value, _NtMapViewOfSection_AllocationType_bitmask},
     {_RegQueryValueExA_lpType_value, _RegQueryValueExA_lpType_bitmask},
     {_NtAllocateVirtualMemory_Protect_value, _NtAllocateVirtualMemory_Protect_bitmask},
-    {_InternetQueryOptions_value, _InternetQueryOptions_bitmask},
-    {_RegSetValueExA_dwType_value, _RegSetValueExA_dwType_bitmask},
-    {_FILE_INFORMATION_CLASS_value, _FILE_INFORMATION_CLASS_bitmask},
+    {_SectionDesiredAccess_value, _SectionDesiredAccess_bitmask},
+    {_NtOpenSection_DesiredAccess_value, _NtOpenSection_DesiredAccess_bitmask},
+    {_RegisterHotKey_fsModifiers_value, _RegisterHotKey_fsModifiers_bitmask},
+    {_NtCreateSection_SectionPageProtection_value, _NtCreateSection_SectionPageProtection_bitmask},
+    {_CreateWindowExW_dwStyle_value, _CreateWindowExW_dwStyle_bitmask},
     {_NtCreateFile_FileAttributes_value, _NtCreateFile_FileAttributes_bitmask},
     {_SetFileAttributesW_dwFileAttributes_value, _SetFileAttributesW_dwFileAttributes_bitmask},
-    {_NtCreateFile_DesiredAccess_value, _NtCreateFile_DesiredAccess_bitmask},
+    {_RegQueryValueExW_lpType_value, _RegQueryValueExW_lpType_bitmask},
     {_NtOpenFile_OpenOptions_value, _NtOpenFile_OpenOptions_bitmask},
     {_NtCreateFile_CreateOptions_value, _NtCreateFile_CreateOptions_bitmask},
     {_NtOpenFile_DesiredAccess_value, _NtOpenFile_DesiredAccess_bitmask},
     {_NtEnumerateValueKey_reg_type_value, _NtEnumerateValueKey_reg_type_bitmask},
     {_CreateWindowExW_dwExStyle_value, _CreateWindowExW_dwExStyle_bitmask},
     {_GetSystemMetrics_nIndex_value, _GetSystemMetrics_nIndex_bitmask},
-    {_NtMapViewOfSection_AllocationType_value, _NtMapViewOfSection_AllocationType_bitmask},
+    {_NtCreateThreadEx_DesiredAccess_value, _NtCreateThreadEx_DesiredAccess_bitmask},
+    {_ALG_ID_value, _ALG_ID_bitmask},
+    {_NtCreateFile_IoStatusBlock_Information_value, _NtCreateFile_IoStatusBlock_Information_bitmask},
+    {_NtCreateFile_DesiredAccess_value, _NtCreateFile_DesiredAccess_bitmask},
     {_NtDeviceIoControlFile_IoControlCode_value, _NtDeviceIoControlFile_IoControlCode_bitmask},
     {_MemoryProtectionFlags_value, _MemoryProtectionFlags_bitmask},
-    {_RegEnumValueA_lpType_value, _RegEnumValueA_lpType_bitmask},
+    {_TaskDialog_dwCommonButtons_value, _TaskDialog_dwCommonButtons_bitmask},
+    {_RegSetValueExA_dwType_value, _RegSetValueExA_dwType_bitmask},
+    {_FILE_INFO_BY_HANDLE_CLASS_value, _FILE_INFO_BY_HANDLE_CLASS_bitmask},
     {_InternetQueryOptionA_dwOption_value, _InternetQueryOptionA_dwOption_bitmask},
     {_NtAllocateVirtualMemory_AllocationType_value, _NtAllocateVirtualMemory_AllocationType_bitmask},
+    {_FILE_INFORMATION_CLASS_value, _FILE_INFORMATION_CLASS_bitmask},
     {_NtProtectVirtualMemory_NewAccessProtection_value, _NtProtectVirtualMemory_NewAccessProtection_bitmask},
     {_InternetSetOptionA_dwOption_value, _InternetSetOptionA_dwOption_bitmask},
-    {_NtCreateFile_CreateDisposition_value, _NtCreateFile_CreateDisposition_bitmask},
+    {_NtQuerySystemInformation_SystemInformationClass_value, _NtQuerySystemInformation_SystemInformationClass_bitmask},
     {_PRIORITY_CLASS_value, _PRIORITY_CLASS_bitmask},
-    {_NtOpenFile_ShareAccess_value, _NtOpenFile_ShareAccess_bitmask},
-    {_AllocationType_value, _AllocationType_bitmask},
+    {_VirtualProtectEx_flNewProtect_value, _VirtualProtectEx_flNewProtect_bitmask},
     {_WindowStyles_value, _WindowStyles_bitmask},
+    {_REGISTRY_VALUE_TYPE_value, _REGISTRY_VALUE_TYPE_bitmask},
     {_SetErrorMode_uMode_value, _SetErrorMode_uMode_bitmask},
     {_RegSetValueExW_dwType_value, _RegSetValueExW_dwType_bitmask},
     {_CreateWindowExA_dwExStyle_value, _CreateWindowExA_dwExStyle_bitmask},
+    {_NtQueryValueKey_reg_type_value, _NtQueryValueKey_reg_type_bitmask},
     {_ExtendedWindowStyles_value, _ExtendedWindowStyles_bitmask},
     {_NtCreateFile_ShareAccess_value, _NtCreateFile_ShareAccess_bitmask},
+    {_NtCreateThread_DesiredAccess_value, _NtCreateThread_DesiredAccess_bitmask},
     {_ShareAccessFlags_value, _ShareAccessFlags_bitmask},
     {_RegEnumValueW_lpType_value, _RegEnumValueW_lpType_bitmask},
+    {_NtMapViewOfSection_Win32Protect_value, _NtMapViewOfSection_Win32Protect_bitmask},
     {_WINDOWS_HOOKS_value, _WINDOWS_HOOKS_bitmask},
     {_SHGetFolderPathW_nFolder_value, _SHGetFolderPathW_nFolder_bitmask},
+    {_NtCreateSection_DesiredAccess_value, _NtCreateSection_DesiredAccess_bitmask},
     {_SetWindowsHookExW_idHook_value, _SetWindowsHookExW_idHook_bitmask},
     {_DeviceIoControl_dwIoControlCode_value, _DeviceIoControl_dwIoControlCode_bitmask},
+    {_RegEnumValueA_lpType_value, _RegEnumValueA_lpType_bitmask},
     {_ACCESS_MASK_value, _ACCESS_MASK_bitmask},
+    {_NtShutdownSystem_Action_value, _NtShutdownSystem_Action_bitmask},
+    {_NtCreateFile_CreateDisposition_value, _NtCreateFile_CreateDisposition_bitmask},
     {_NtSetValueKey_Type_value, _NtSetValueKey_Type_bitmask},
-    {_REGISTRY_VALUE_TYPE_value, _REGISTRY_VALUE_TYPE_bitmask},
+    {_NtOpenThread_DesiredAccess_value, _NtOpenThread_DesiredAccess_bitmask},
     {_CreateWindowExA_dwStyle_value, _CreateWindowExA_dwStyle_bitmask},
-    {_ALG_ID_value, _ALG_ID_bitmask},
+    {_NtOpenFile_ShareAccess_value, _NtOpenFile_ShareAccess_bitmask},
     {_KEY_VALUE_INFORMATION_CLASS_value, _KEY_VALUE_INFORMATION_CLASS_bitmask},
     {_IOCTL_CODES_value, _IOCTL_CODES_bitmask},
-    {_VirtualProtectEx_flNewProtect_value, _VirtualProtectEx_flNewProtect_bitmask},
+    {_ThreadDesiredAccess_value, _ThreadDesiredAccess_bitmask},
     {_CreateProcessInternalW_creation_flags_value, _CreateProcessInternalW_creation_flags_bitmask},
     {_KEY_INFORMATION_CLASS_value, _KEY_INFORMATION_CLASS_bitmask},
     {_FileOptions_value, _FileOptions_bitmask},
-    {_FILE_INFO_BY_HANDLE_CLASS_value, _FILE_INFO_BY_HANDLE_CLASS_bitmask},
-    {_CreateWindowExW_dwStyle_value, _CreateWindowExW_dwStyle_bitmask},
+    {_AllocationType_value, _AllocationType_bitmask},
     {_SetWindowsHookExA_idHook_value, _SetWindowsHookExA_idHook_bitmask},
 };
 

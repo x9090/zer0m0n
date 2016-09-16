@@ -20,17 +20,20 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define MONITOR_MISC_H
 
 #include <windows.h>
+#include <wbemidl.h>
 #include "bson.h"
 #include "ntapi.h"
 
 typedef void (*monitor_hook_t)(const char *library, void *module_handle);
 
-int misc_init(HMODULE module_handle, const char *shutdown_mutex);
+int misc_init(const char *shutdown_mutex);
 
 // Call functions from monitor.c indirectly so that we don't have to include
 // it by default when doing unittests.
-void misc_set_hook_library(monitor_hook_t monitor_hook);
+void misc_set_hook_library(monitor_hook_t monitor_hook,
+    monitor_hook_t monitor_unhook);
 void hook_library(const char *library, void *module_handle);
+void unhook_library(const char *library, void *module_handle);
 
 void misc_set_monitor_options(uint32_t track, uint32_t mode);
 
@@ -40,7 +43,9 @@ void free_unicode_buffer(wchar_t *ptr);
 uint32_t pid_from_process_handle(HANDLE process_handle);
 uint32_t pid_from_thread_handle(HANDLE thread_handle);
 uint32_t tid_from_thread_handle(HANDLE thread_handle);
-uint32_t parent_process_identifier(int pid);
+uint32_t parent_process_identifier(HANDLE process_handle);
+PEB *get_peb_by_process_handle(HANDLE process_handle);
+wchar_t *commandline_from_process_handle(HANDLE process_handle);
 
 uint32_t path_get_full_pathA(const char *in, wchar_t *out);
 uint32_t path_get_full_pathW(const wchar_t *in, wchar_t *out);
@@ -53,16 +58,11 @@ void wcsncpyA(wchar_t *dst, const char *src, uint32_t length);
 
 void hide_module_from_peb(HMODULE module_handle);
 const wchar_t *get_module_file_name(HMODULE module_handle);
+void loaded_modules_enumerate(bson *b);
 void destroy_pe_header(HANDLE module_handle);
 
-int copy_unicode_string(const UNICODE_STRING *in,
-    UNICODE_STRING *out, wchar_t *buffer, uint32_t length);
-
-wchar_t *extract_unicode_string(const UNICODE_STRING *unistr);
-
-int copy_object_attributes(const OBJECT_ATTRIBUTES *in,
-    OBJECT_ATTRIBUTES *out, UNICODE_STRING *unistr,
-    wchar_t *buffer, uint32_t length);
+wchar_t *extract_unicode_string_unistr(const UNICODE_STRING *unistr);
+wchar_t *extract_unicode_string_objattr(const OBJECT_ATTRIBUTES *objattr);
 
 uint32_t reg_get_key(HANDLE key_handle, wchar_t *regkey);
 uint32_t reg_get_key_ascii(HANDLE key_handle,
@@ -90,13 +90,14 @@ void get_ip_port(const struct sockaddr *addr, const char **ip, int *port);
 int is_shutting_down();
 
 void library_from_asciiz(const char *str, char *library, uint32_t length);
+void library_from_unicodez(const wchar_t *str, char *library, int32_t length);
 void library_from_unicode_string(const UNICODE_STRING *us,
     char *library, int32_t length);
 
 int stacktrace(CONTEXT *ctx, uintptr_t *addrs, uint32_t length);
 
 void *memdup(const void *addr, uint32_t length);
-wchar_t *wcsdup(const wchar_t *s);
+wchar_t *our_wcsdup(const wchar_t *s);
 int page_is_readable(const void *addr);
 int range_is_readable(const void *addr, uintptr_t size);
 void clsid_to_string(REFCLSID rclsid, char *buf);
@@ -121,11 +122,94 @@ void chtmtag_attrs(const void *chtmtag, bson *b);
 
 void sha1(const void *buffer, uintptr_t buflen, char *hexdigest);
 
-#define COPY_OBJECT_ATTRIBUTES(local_name, param_name) \
-    OBJECT_ATTRIBUTES local_name; UNICODE_STRING local_name##_unistr; \
-    wchar_t *local_name##_buffer = get_unicode_buffer(); \
-    copy_object_attributes(param_name, &local_name, &local_name##_unistr, \
-        local_name##_buffer, sizeof(local_name##_buffer));
+void int_or_strA(char **ptr, const char *str, char *numbuf);
+void int_or_strW(wchar_t **ptr, const wchar_t *str, wchar_t *numbuf);
+
+uint8_t *our_memmem(
+    uint8_t *haystack, uint32_t haylength,
+    const void *needle, uint32_t needlength,
+    uint32_t *idx);
+wchar_t *our_memmemW(
+    const void *haystack, uint32_t haylength,
+    const wchar_t *needle, uint32_t *idx);
+
+uint32_t sys_string_length(const BSTR bstr);
+BSTR sys_alloc_string_len(const OLECHAR *sz, UINT ui);
+int sys_string_cmp(const BSTR bstr, const wchar_t *value);
+
+HRESULT variant_change_type(
+    VARIANTARG *dst, const VARIANTARG *src, USHORT flags, VARTYPE vt);
+HRESULT variant_clear(VARIANTARG *arg);
+
+int is_exception_code_whitelisted(NTSTATUS exception_code);
+int is_exception_address_whitelisted(uintptr_t addr);
+
+typedef struct _funcoff_t {
+    uint32_t timestamp;
+    uint32_t offset;
+    uint32_t cconv;
+} funcoff_t;
+
+typedef struct _mod2funcoff_t {
+    const char *funcname;
+    funcoff_t *funcoff;
+} mod2funcoff_t;
+
+typedef struct _insnoff_t {
+    uint32_t timestamp;
+    uint32_t offset;
+    uint32_t signature;
+    void (__stdcall *callback)(uintptr_t, uintptr_t, uintptr_t, uintptr_t);
+} insnoff_t;
+
+typedef struct _mod2insnoff_t {
+    const char *funcname;
+    insnoff_t *insnoff;
+} mod2insnoff_t;
+
+uint8_t *module_addr_timestamp(
+    uint8_t *module_address, uint32_t module_size,
+    funcoff_t *fo, uint32_t *cconv
+);
+
+uint8_t *module_addr_timestamp_mod(
+    uint8_t *module_address, uint32_t module_size,
+    mod2funcoff_t *mf, const char *funcname, uint32_t *cconv
+);
+
+insnoff_t *module_addr_timestamp_modinsn(
+    uint8_t *module_address, uint32_t module_size,
+    mod2insnoff_t *mi, const char *funcname
+);
+
+int variant_to_bson(bson *b, const char *name, const VARIANT *v);
+int vbe6_invoke_extract_args(uint8_t *addr, bson *b);
+
+void vbe6_set_funcname(const wchar_t *funcname);
+wchar_t *vbe6_get_funcname();
+
+void hexdump(char *out, void *ptr, uint32_t length);
+uint32_t first_tid_from_pid(uint32_t process_identifier);
+int resume_thread_identifier(uint32_t thread_identifier);
+
+extern uint32_t g_extra_virtual_memory;
+
+void set_processor_count(uint32_t processor_count);
+void add_virtual_memory(uint64_t length);
+
+void copy_init();
+int copy_bytes(void *to, const void *from, uint32_t length);
+int copy_unicodez(wchar_t *to, const wchar_t *from);
+int copy_wcsncpyA(wchar_t *to, const char *from, uint32_t length);
+uint32_t copy_strlen(const char *value);
+uint32_t copy_strlenW(const wchar_t *value);
+char *copy_utf8_string(const char *str, uint32_t length);
+char *copy_utf8_wstring(const wchar_t *str, uint32_t length);
+uint32_t copy_uint32(const void *value);
+uint64_t copy_uint64(const void *value);
+uintptr_t copy_uintptr(const void *value);
+void *copy_ptr(const void *ptr);
+void copy_return();
 
 #define OBJECT_NAME_INFORMATION_REQUIRED_SIZE \
     sizeof(OBJECT_NAME_INFORMATION) + sizeof(wchar_t) * MAX_PATH_W

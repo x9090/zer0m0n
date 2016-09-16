@@ -24,102 +24,10 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #include "pipe.h"
 #include "utf8.h"
 
-#define assert(expression, message, return_value) \
-    if((expression) == 0) { \
-        MessageBox(NULL, message, "Error", 0); \
-        return return_value; \
-    }
-
 static CRITICAL_SECTION g_cs;
 static wchar_t g_pipe_name[MAX_PATH];
 static HANDLE g_pipe_handle;
-
-typedef NTSTATUS (WINAPI *NTWRITEFILE)(HANDLE FileHandle, HANDLE Event,
-    PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext,
-    PIO_STATUS_BLOCK IoStatusBlock, const void *Buffer, ULONG Length,
-    PLARGE_INTEGER ByteOffset, PULONG Key);
-
-typedef NTSTATUS (WINAPI *NTFSCONTROLFILE)(HANDLE FileHandle, HANDLE Event,
-    PIO_APC_ROUTINE ApcRoutine, PVOID ApcContext,
-    PIO_STATUS_BLOCK IoStatusBlock, ULONG FsControlCode,
-    const void *InputBuffer, ULONG InputBufferLength,
-    void *OutputBuffer, ULONG OutputBufferLength);
-
-typedef NTSTATUS (WINAPI *NTWAITFORSINGLEOBJECT)(HANDLE Object,
-    BOOLEAN Alertable, PLARGE_INTEGER Timeout);
-
-NTWRITEFILE NtWriteFile;
-NTFSCONTROLFILE NtFsControlFile;
-NTWAITFORSINGLEOBJECT NtWaitForSingleObject;
-
-void init_func()
-{
-    NtWriteFile = (NTWRITEFILE)GetProcAddress(LoadLibrary("ntdll.dll"), "NtWriteFile");
-    NtFsControlFile = (NTFSCONTROLFILE)GetProcAddress(LoadLibrary("ntdll.dll"), "NtFsControlFile"); 
-    NtWaitForSingleObject = (NTWAITFORSINGLEOBJECT)GetProcAddress(LoadLibrary("ntdll.dll"), "NtWaitForSingleObject");
-}
-
-NTSTATUS write_file(HANDLE file_handle, const void *buffer, uint32_t length,
-    uint32_t *bytes_written)
-{
-    IO_STATUS_BLOCK status_block;
-
-    NTSTATUS ret = NtWriteFile(file_handle, NULL, NULL, NULL,
-        &status_block, buffer, length, NULL, NULL);
-
-    if(NT_SUCCESS(ret) != FALSE && bytes_written != NULL) {
-        *bytes_written = status_block.Information;
-    }
-    return ret;
-}
-
-#define FSCTL_PIPE_TRANSCEIVE \
-    CTL_CODE(FILE_DEVICE_NAMED_PIPE, 5, \
-    METHOD_NEITHER, FILE_READ_DATA | FILE_WRITE_DATA)
-
-NTSTATUS transact_named_pipe(HANDLE pipe_handle,
-    const void *inbuf, uintptr_t inbufsz, void *outbuf, uintptr_t outbufsz,
-    uintptr_t *written)
-{
-
-    if(NtFsControlFile == NULL && NtWaitForSingleObject == NULL) {
-        DWORD _written = 0;
-        TransactNamedPipe(pipe_handle, (void *) inbuf, inbufsz,
-            (void *) outbuf, outbufsz, &_written, NULL);
-        if(written != NULL) {
-            *written = _written;
-        }
-        return 0;
-    }
-
-    assert(NtFsControlFile != NULL, "NtFsControlFile is NULL!", 0);
-    assert(NtWaitForSingleObject != NULL,
-        "NtWaitForSingleObject is NULL!", 0);
-
-    IO_STATUS_BLOCK status_block;
-
-    NTSTATUS ret = NtFsControlFile(pipe_handle, NULL, NULL, NULL,
-        &status_block, FSCTL_PIPE_TRANSCEIVE, inbuf, inbufsz, outbuf,
-        outbufsz);
-    if(ret == STATUS_PENDING) {
-        ret = NtWaitForSingleObject(pipe_handle, FALSE, NULL);
-        if(NT_SUCCESS(ret) != FALSE) {
-            ret = status_block._.Status;
-        }
-    }
-
-    if(NT_SUCCESS(ret) != FALSE && written != NULL) {
-        *written = status_block.Information;
-    }
-    return ret;
-}
-
-NTSTATUS set_named_pipe_handle_mode(HANDLE pipe_handle, uint32_t mode)
-{
-    DWORD _mode = mode;
-    SetNamedPipeHandleState(pipe_handle, &_mode, NULL, NULL);
-    return 0;
-}
+static int g_pipe_pid;
 
 static int _pipe_utf8x(char **out, unsigned short x)
 {
@@ -230,35 +138,50 @@ static void open_pipe_handle()
             FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, OPEN_EXISTING,
             FILE_ATTRIBUTE_NORMAL | FILE_FLAG_WRITE_THROUGH, NULL);
 
-        sleep(1);
+        sleep(50);
     } while (g_pipe_handle == INVALID_HANDLE_VALUE);
 
     uint32_t pipe_mode = PIPE_READMODE_MESSAGE | PIPE_WAIT;
     set_named_pipe_handle_mode(g_pipe_handle, pipe_mode);
 }
 
-void pipe_init(const char *pipe_name)
+void pipe_init(const char *pipe_name, int pipe_pid)
 {
     InitializeCriticalSection(&g_cs);
     wcsncpyA(g_pipe_name, pipe_name, MAX_PATH);
     g_pipe_handle = INVALID_HANDLE_VALUE;
+    g_pipe_pid = pipe_pid;
+}
+
+// Hack because _pipe_sprintf() works with va_list.
+static int _prepend_pid(char *buf, ...)
+{
+    va_list args;
+    va_start(args, buf);
+    int ret = _pipe_sprintf(buf, "%d:", args);
+    va_end(args);
+    return ret;
 }
 
 int pipe(const char *fmt, ...)
 {
     if(g_pipe_name[0] == 0) {
-        MessageBox(NULL, "Pipe has not been initialized yet!", "Error", 0);
+        message_box(NULL, "Pipe has not been initialized yet!", "Error", 0);
         return -1;
     }
 
     open_pipe_handle();
 
-    static char buf[0x10000]; va_list args; int ret = -1, len;
+    static char buf[0x10000]; va_list args; int ret = -1, len = 0;
 
     EnterCriticalSection(&g_cs);
 
+    if(g_pipe_pid != 0) {
+        len = _prepend_pid(buf, get_current_process_id());
+    }
+
     va_start(args, fmt);
-    len = _pipe_sprintf(buf, fmt, args);
+    len += _pipe_sprintf(buf+len, fmt, args);
     va_end(args);
 
     if(len > 0) {
@@ -273,19 +196,23 @@ int pipe(const char *fmt, ...)
 int32_t pipe2(void *out, uint32_t outlen, const char *fmt, ...)
 {
     if(g_pipe_name[0] == 0) {
-        MessageBox(NULL, "Pipe has not been initialized yet!", "Error", 0);
+        message_box(NULL, "Pipe has not been initialized yet!", "Error", 0);
         return -1;
     }
 
     open_pipe_handle();
 
     static char buf[0x10000]; va_list args;
-    int32_t ret = -1, len; uintptr_t written;
+    int32_t ret = -1, len = 0; uintptr_t written;
 
     EnterCriticalSection(&g_cs);
 
+    if(g_pipe_pid != 0) {
+        len = _prepend_pid(buf, get_current_process_id());
+    }
+
     va_start(args, fmt);
-    len = _pipe_sprintf(buf, fmt, args);
+    len += _pipe_sprintf(buf+len, fmt, args);
     va_end(args);
 
     if(len > 0) {

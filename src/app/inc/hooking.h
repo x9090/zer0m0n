@@ -21,6 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <stdint.h>
 #include <windows.h>
+#include <wbemidl.h>
 #include "monitor.h"
 
 #define RETADDRCNT 64
@@ -31,6 +32,18 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define HOOK_MODE_DUMPTLS  1
 #define HOOK_MODE_IEXPLORE 2
 #define HOOK_MODE_EXPLOIT  4
+#define HOOK_MODE_OFFICE   8
+#define HOOK_MODE_PDF      16
+
+#define HOOK_INSN_EAX      1
+#define HOOK_INSN_ECX      2
+#define HOOK_INSN_EDX      3
+#define HOOK_INSN_EBX      4
+#define HOOK_INSN_ESP      5
+#define HOOK_INSN_EBP      6
+#define HOOK_INSN_ESI      7
+#define HOOK_INSN_EDI      8
+#define HOOK_INSN_STK(n)   (9+n)
 
 typedef struct _hook_t {
     // Library and function name.
@@ -50,8 +63,15 @@ typedef struct _hook_t {
     // related to API hooks.
     int report;
 
+    // Is this an instruction-level hook.
+    int insn;
+    uint32_t insn_signature;
+
     // Mode indicating in which monitor modes this hook should be enabled.
     int mode;
+
+    // Calling convention required for this hook.
+    uint32_t cconv;
 
     // Special address resolve callback for this function hook. It is called
     // in order to resolve the address of the function to be hooked.
@@ -123,7 +143,49 @@ uint8_t *hook_addrcb_PRF(
     hook_t *h, uint8_t *module_address, uint32_t module_size);
 uint8_t *hook_addrcb_Ssl3GenerateKeyMaterial(
     hook_t *h, uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_CImgElement_put_src(
+    hook_t *h, uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_ActiveXObjectFncObj_Construct(
+    hook_t *h, uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_IWbemServices_ExecQuery(
+    hook_t *h, uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_IWbemServices_ExecQueryAsync(hook_t *h,
+    uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_IWbemServices_ExecMethod(hook_t *h,
+    uint8_t *module_address, uint32_t module_size);
+uint8_t *hook_addrcb_IWbemServices_ExecMethodAsync(hook_t *h,
+    uint8_t *module_address, uint32_t module_size);
 
-int iexplore_should_propagate_monitor_mode(const wchar_t *cmdline);
+uint8_t *hook_modulecb_vbe6(
+    hook_t *h, uint8_t *module_address, uint32_t module_size
+);
+
+uint8_t *hook_modulecb_escript_api(
+    hook_t *h, uint8_t *module_address, uint32_t module_size
+);
+
+uint8_t *hook_modulecb_jscript(
+    hook_t *h, uint8_t *module_address, uint32_t module_size
+);
+
+uint8_t *hook_modulecb_mshtml(
+    hook_t *h, uint8_t *module_address, uint32_t module_size
+);
+
+uint8_t *hook_modulecb_ncrypt(
+    hook_t *h, uint8_t *module_address, uint32_t module_size
+);
+
+typedef void VAR;
+
+VAR *iexplore_var_getvalue(VAR *value, void *session);
+
+int wmi_win32_process_create_pre(
+    IWbemServices *services, IWbemClassObject *args, uint32_t *creation_flags
+);
+void ole_enable_hooks(REFCLSID refclsid);
+
+extern uintptr_t g_monitor_start;
+extern uintptr_t g_monitor_end;
 
 #endif

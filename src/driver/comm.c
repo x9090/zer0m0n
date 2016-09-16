@@ -211,7 +211,6 @@ NTSTATUS SendLogs(__in ULONG pid,
 	if(sig_func <= 0)
 		return STATUS_INVALID_PARAMETER;
 
-	Dbg("[%s] SendLogs\n", __FUNCTION__);
 	Dbg("[%s] parameter : %ws\n", __FUNCTION__, parameter);
 		
 	processName.Length = 0;
